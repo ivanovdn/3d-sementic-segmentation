@@ -1,0 +1,11 @@
+*.ply
+*.png
+*.pt
+*.ipynb
+/data
+/.vscode
+.DS_Store
+/.ipynb_checkpoints
+/__pycache__
+*.pth
+/results
