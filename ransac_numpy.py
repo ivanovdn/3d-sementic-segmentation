@@ -278,14 +278,15 @@ class StructuralRANSAC:
         """
         # Color map for different segment types
         colors = {
-            "floor": [0, 0, 1],  # Blue
-            "ceiling": [0, 1, 0],  # Green
-            "wall": [1, 0, 0],  # Red
-            "unknown": [0.5, 0.5, 0.5],  # Gray
+            "floor": [0.4, 0.2, 0.1],  # Blue
+            "ceiling": [0.8, 0.8, 0.8],  # Green
+            "wall": [0.6, 0.6, 0.5],  # Red
+            "unknown": [0.8, 0.2, 0.2],  # Gray
         }
 
         # Create colored point cloud
         point_colors = np.ones((len(self.points), 3)) * 0.5  # Default gray
+        point_colors[:] = [0.8, 0.2, 0.2]
 
         for segment_name, segment_data in self.segments.items():
             segment_type = segment_data["type"]
