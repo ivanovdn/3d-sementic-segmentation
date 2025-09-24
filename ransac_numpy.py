@@ -10,13 +10,15 @@ from sklearn.neighbors import KDTree
 
 
 class StructuralRANSAC:
-    def __init__(self, point_cloud, voxel_size=0.02):
+    def __init__(self, point_cloud, voxel_size=0.02, downsample=True):
         """
         Initialize with point cloud
         """
         # Downsample for efficiency
-        self.original_cloud = point_cloud
-        self.cloud = point_cloud.voxel_down_sample(voxel_size)
+        if downsample:
+            self.cloud = point_cloud.voxel_down_sample(voxel_size)
+        else:
+            self.cloud = point_cloud
 
         # Get points and normals
         self.cloud.estimate_normals(
