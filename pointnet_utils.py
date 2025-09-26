@@ -18,7 +18,7 @@ def get_model():
     return model
 
 
-def inference(data_blocks):
+def inference(data_blocks, type="wall"):
     model = get_model()
     all_predictions = []
     all_confidences = []
@@ -41,8 +41,12 @@ def inference(data_blocks):
             pred_choice = pred_probs.data.max(1)[1]
 
             # Filter low confidence predictions
-            low_confidence_mask = confidences < 0.3
-            pred_choice[low_confidence_mask] = 12  # clutter
+            if type == "wall":
+                low_confidence_mask = confidences < 0.3
+                pred_choice[low_confidence_mask] = 2  # wall
+            else:
+                low_confidence_mask = confidences < 0.3
+                pred_choice[low_confidence_mask] = 12  # clutter
 
             all_predictions.append(pred_choice.cpu().numpy())
             all_confidences.append(confidences.cpu().numpy())

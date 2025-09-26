@@ -1202,3 +1202,43 @@ class StructuralRANSAC:
             remaining = remaining[~inlier_mask]
 
         return lines
+
+    def refine_wall_segment(self, wall_name, wall_indices, predictions):
+        """
+        Refine a single wall segment based on predictions
+        """
+        refined = {}
+
+        # Separate by prediction
+        wall_mask = predictions == 2
+        window_mask = predictions == 5
+        door_mask = predictions == 6
+
+        # Keep wall points
+        if np.any(wall_mask):
+            self.segments[wall_name]["indices"] = wall_indices[wall_mask]
+
+        # Add windows
+        if np.any(window_mask):
+            window_indices = wall_indices[window_mask]
+            # Cluster to separate multiple windows
+            window_clusters = self.cluster_points(window_indices, eps=0.3)
+            for i, cluster in enumerate(window_clusters):
+                self.segments[f"window_{i}"] = {
+                    "indices": cluster,
+                    "type": "window",
+                    "parent": wall_name,
+                }
+
+        # Add doors
+        if np.any(door_mask):
+            door_indices = wall_indices[door_mask]
+            door_clusters = self.cluster_points(door_indices, eps=0.3)
+            for i, cluster in enumerate(door_clusters):
+                self.segments[f"door_{i}"] = {
+                    "indices": cluster,
+                    "type": "door",
+                    "parent": wall_name,
+                }
+
+        return self.segments
