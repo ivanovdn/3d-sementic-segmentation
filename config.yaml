@@ -1,0 +1,7 @@
+architecture: PointNet++
+dataset: s3dis
+area: 1
+room: office_1
+subsample_method: voxel
+block_size: 1.0
+stride: 0.5
