@@ -10,3 +10,4 @@
 *.pth
 /results
 /models
+/wandb
