@@ -1211,34 +1211,56 @@ class StructuralRANSAC:
 
         # Separate by prediction
         wall_mask = predictions == 2
+        beam_mask = predictions == 3
         window_mask = predictions == 5
         door_mask = predictions == 6
+        board_mask = predictions == 11
 
         # Keep wall points
         if np.any(wall_mask):
             self.segments[wall_name]["indices"] = wall_indices[wall_mask]
 
+        # add beam
+        if sum(beam_mask) > 300:
+            self.segments[f"beam_{wall_name}"] = {
+                "indices": wall_indices[beam_mask],
+                "type": "beam",
+                "parent": wall_name,
+            }
+            print("added beam")
+
         # Add windows
-        if np.any(window_mask):
+        if sum(window_mask) > 300:
             window_indices = wall_indices[window_mask]
             # Cluster to separate multiple windows
             window_clusters = self.cluster_points(window_indices, eps=0.3)
             for i, cluster in enumerate(window_clusters):
-                self.segments[f"window_{i}"] = {
+                self.segments[f"window_{wall_name}_{i}"] = {
                     "indices": cluster,
                     "type": "window",
                     "parent": wall_name,
                 }
+                print("added window")
 
         # Add doors
-        if np.any(door_mask):
+        if sum(door_mask) > 300:
             door_indices = wall_indices[door_mask]
             door_clusters = self.cluster_points(door_indices, eps=0.3)
             for i, cluster in enumerate(door_clusters):
-                self.segments[f"door_{i}"] = {
+                self.segments[f"door_{wall_name}_{i}"] = {
                     "indices": cluster,
                     "type": "door",
                     "parent": wall_name,
                 }
+                print("added door")
+
+        # add board
+        if sum(board_mask):
+            self.segments[f"board_{wall_name}"] = {
+                "indices": wall_indices[board_mask],
+                "type": "board",
+                "parent": wall_name,
+            }
+            print("added board")
 
         return self.segments
