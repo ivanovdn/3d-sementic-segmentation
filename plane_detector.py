@@ -442,8 +442,9 @@ class StructuralRANSAC:
         for segment_name, segment_data in self.segments.items():
             if "wall" in segment_name:
                 used_indices.extend(segment_data["indices"])
+
         self.remaining_indices = np.setdiff1d(
-            np.arange(len(self.points)), np.array(used_indices)
+            self.remaining_indices, np.array(used_indices)
         )
 
     def classify_vertical_plane(self, plane, indices, room_height, floor_z, ceiling_z):
