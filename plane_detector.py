@@ -318,10 +318,16 @@ class StructuralRANSAC:
         """
         # Color map for different segment types
         colors = {
-            "floor": [0.4, 0.2, 0.1],  # Blue
-            "ceiling": [0.8, 0.8, 0.8],  # Green
-            "wall": [0.6, 0.6, 0.5],  # Red
+            "floor": [0.4, 0.2, 0.1],  # dark brown
+            "ceiling": [0.8, 0.8, 0.8],  # light gray
+            "wall": [0.6, 0.6, 0.5],  # beige
+            "window": [0.0, 0.6, 1.0],  # bright blue
+            "door": [1.0, 0.6, 0.0],  # bright orange
+            "table": [0.0, 0.8, 0.0],  #  bright green
+            "chair": [0.0, 0.8, 0.0],  #  bright green
+            "board": [0.2, 0.2, 0.2],  # dark
             "beam": [1, 1, 0],  # Yellow
+            "column": [0.7, 0.0, 0.7],  # bright purple
             "unknown": [0.8, 0.2, 0.2],  # Gray
         }
 
