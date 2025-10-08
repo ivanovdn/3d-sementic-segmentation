@@ -40,18 +40,6 @@ class StructuralRANSAC:
             "angle_threshold_deg": 10,
             "wall_angle_tolerance": 10,
             "floor_ceiling_angle_tolerance": 10,
-            # Beam-specific parameters (strict)
-            "beam_min_length": 1.5,
-            "beam_max_width": 0.4,
-            "beam_max_height": 0.3,
-            "beam_elongation_ratio": 4.0,
-            "beam_ceiling_distance": 0.3,
-            "beam_min_points": 100,
-            "beam_horizontality_threshold": 0.95,
-            "beam_min_density": 50,
-            "beam_straightness_threshold": 0.05,
-            "column_beam_angle_threshold": 80,
-            "beam_merge_distance": 0.3,
         }
         self.params.update(
             {
