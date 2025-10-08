@@ -42,8 +42,6 @@ class SegmentationMetrics:
         """Compute IoU for each class"""
         ious = {}
         for class_id, class_name in enumerate(self.classes):
-            if class_id not in self.structural_only:
-                continue
 
             gt_mask = self.gt == class_id
             pred_mask = self.pred == class_id
