@@ -11,10 +11,7 @@ from sklearn.neighbors import KDTree
 
 class StructuralRANSAC:
     def __init__(self, point_cloud, voxel_size=0.02, downsample=True):
-        """
-        Initialize with point cloud
-        """
-        # Downsample for efficiency
+
         # self.original_cloud = point_cloud
 
         if downsample:
@@ -22,14 +19,12 @@ class StructuralRANSAC:
         else:
             self.cloud = point_cloud
 
-        # Get points and normals
         self.cloud.estimate_normals(
             search_param=o3d.geometry.KDTreeSearchParamHybrid(radius=0.1, max_nn=30)
         )
         self.points = np.asarray(self.cloud.points)
         self.normals = np.asarray(self.cloud.normals)
 
-        # Build KDTree for neighbor searches
         self.kdtree = KDTree(self.points)
 
         # Parameters - Basic
@@ -38,7 +33,7 @@ class StructuralRANSAC:
             "ransac_iterations": 1000,
             "min_plane_points": 100,
             "angle_threshold_deg": 10,
-            "wall_angle_tolerance": 10,
+            "wall_angle_tolerance": 40,
             "floor_ceiling_angle_tolerance": 10,
         }
         self.params.update(
@@ -74,7 +69,7 @@ class StructuralRANSAC:
 
         clusters = []
         for label in set(clustering.labels_):
-            if label == -1:  # Skip noise
+            if label == -1:  # skip noise
                 continue
 
             cluster_mask = clustering.labels_ == label
@@ -109,12 +104,12 @@ class StructuralRANSAC:
         best_inliers = []
         best_score = 0
 
-        for iteration in range(self.params["ransac_iterations"]):
-            # Sample 3 points
+        for _ in range(self.params["ransac_iterations"]):
+            # sample 3 points
             sample_idx = np.random.choice(len(points), 3, replace=False)
             sample_points = points[sample_idx]
 
-            # Calculate plane
+            # salculate plane
             v1 = sample_points[1] - sample_points[0]
             v2 = sample_points[2] - sample_points[0]
             normal = np.cross(v1, v2)
@@ -125,7 +120,6 @@ class StructuralRANSAC:
             normal = normal / np.linalg.norm(normal)
             d = -np.dot(normal, sample_points[0])
 
-            # Check constraints
             if normal_constraint is not None:
                 angle = np.arccos(
                     np.clip(np.abs(np.dot(normal, normal_constraint)), -1, 1)
@@ -133,12 +127,12 @@ class StructuralRANSAC:
                 if np.degrees(angle) > self.params["angle_threshold_deg"]:
                     continue
 
-            # Find inliers
+            #  inliers
             distances = np.abs(np.dot(points, normal) + d)
             inlier_mask = distances < self.params["ransac_threshold"]
             inliers = indices[inlier_mask]
 
-            # Score
+            # score
             score = len(inliers)
 
             if position_constraint == "lowest" and normal[2] > 0.9:
@@ -361,12 +355,9 @@ class StructuralRANSAC:
         return vis_cloud
 
     def segment_walls_improved(self, num_walls=15):
-        """
-        Enhanced wall detection that distinguishes walls from furniture
-        """
+
         print("Detecting walls with validation...")
 
-        # Get room dimensions for context
         room_height = self.get_room_height()
         floor_z = self.get_floor_height()
         ceiling_z = self.get_ceiling_height()
@@ -375,28 +366,26 @@ class StructuralRANSAC:
         furniture_candidates = []
         wall_count = 0
 
-        # Try to find more potential wall planes
-        for i in range(num_walls * 2):  # Try more iterations
+        # to find more potential wall planes
+        for i in range(num_walls * 2):
             if len(self.remaining_indices) < self.params["min_plane_points"]:
                 break
 
-            # Find a plane
+            # detect plane
             plane, inliers = self.ransac_plane(self.remaining_indices)
 
             if plane is None or len(inliers) < self.params["min_plane_points"]:
                 break
 
-            # Check if plane is vertical
+            # check if plane is vertical
             normal = plane["normal"]
-            verticality = 1.0 - abs(normal[2])  # Should be close to 1 for walls
+            verticality = 1.0 - abs(normal[2])
 
-            if verticality < 0.8:  # Not vertical enough
+            if verticality < 0.8:
                 continue
 
-            # Temporarily remove these points to find more planes
             temp_remaining = np.setdiff1d(self.remaining_indices, inliers)
 
-            # Classify as wall or furniture
             classification = self.classify_vertical_plane(
                 plane, inliers, room_height, floor_z, ceiling_z
             )
@@ -408,19 +397,16 @@ class StructuralRANSAC:
             elif classification == "furniture":
                 furniture_candidates.append({"plane": plane, "indices": inliers})
 
-            # Update remaining indices
             self.remaining_indices = temp_remaining
 
-        # Merge similar walls
         merged_walls = self.merge_similar_walls(wall_candidates)
 
-        # Add walls to segments
         for i, wall_data in enumerate(merged_walls):
             # Refine with region growing
             refined_indices = self.region_grow_plane(
                 wall_data["plane"],
                 wall_data["indices"],
-                growth_threshold=0.15,  # Slightly larger for walls with gaps
+                growth_threshold=0.15,
             )
 
             self.segments[f"wall_{i}"] = {
@@ -593,11 +579,10 @@ class StructuralRANSAC:
         bbox2_min = np.min(points2, axis=0)
         bbox2_max = np.max(points2, axis=0)
 
-        # Check if bounding boxes are close
         gap = np.maximum(0, np.maximum(bbox1_min - bbox2_max, bbox2_min - bbox1_max))
         max_gap = np.max(gap)
 
-        if max_gap > 0.5:  # More than 50cm gap
+        if max_gap > 0.5:
             return False
 
         return True
@@ -623,7 +608,7 @@ class StructuralRANSAC:
             ceiling_points = self.points[self.segments["ceiling"]["indices"]]
             return np.mean(ceiling_points[:, 2])
         else:
-            # Estimate from highest points
+
             return np.percentile(self.points[:, 2], 95)
 
     def segment_walls_projection_based(self):
@@ -632,14 +617,12 @@ class StructuralRANSAC:
         """
         print("Detecting walls using 2D projection...")
 
-        # Get points between floor and ceiling
         z_values = self.points[:, 2]
         floor_z = self.get_floor_height()
         ceiling_z = self.get_ceiling_height()
 
-        # Get points in middle height (avoid floor/ceiling)
         mid_height = (floor_z + ceiling_z) / 2
-        height_band = 0.5  # Look at 1m band around middle
+        height_band = 0.5
 
         mask = (z_values > mid_height - height_band) & (
             z_values < mid_height + height_band
@@ -647,13 +630,10 @@ class StructuralRANSAC:
         mid_points = self.points[mask]
         mid_indices = np.where(mask)[0]
 
-        # Project to 2D (top view)
         points_2d = mid_points[:, :2]
 
-        # Find line segments using RANSAC in 2D
         wall_lines = self.detect_2d_lines(points_2d, mid_indices)
 
-        # Extend lines to full height
         walls = []
         for line in wall_lines:
             wall_indices = self.extend_wall_to_full_height(line)
@@ -671,7 +651,7 @@ class StructuralRANSAC:
         remaining = indices.copy()
 
         while len(remaining) > 100:
-            # Fit line using RANSAC
+
             X = points_2d[remaining][:, 0].reshape(-1, 1)
             y = points_2d[remaining][:, 1]
 
@@ -694,14 +674,13 @@ class StructuralRANSAC:
         """
         refined = {}
 
-        # Separate by prediction
         wall_mask = predictions == 2
         beam_mask = predictions == 3
         window_mask = predictions == 5
         door_mask = predictions == 6
         board_mask = predictions == 11
 
-        # Keep wall points
+        # refine walls
         if np.any(wall_mask):
             self.segments[wall_name]["indices"] = wall_indices[wall_mask]
 

@@ -32,7 +32,6 @@ class S3DISValidator:
         points = []
         labels = []
 
-        # Read each annotation file
         anno_path = os.path.join(room_path, "Annotations")
         for file in os.listdir(anno_path):
             if file.endswith(".txt"):
@@ -64,7 +63,6 @@ class S3DISValidator:
         total_points_original = 0
         total_points_subsampled = 0
 
-        # Read each annotation file
         anno_path = os.path.join(room_path, "Annotations")
 
         for file in os.listdir(anno_path):
@@ -76,7 +74,6 @@ class S3DISValidator:
 
                     total_points_original += len(data)
 
-                    # Subsample: take every Nth point
                     subsampled_indices = np.arange(0, len(data), subsample_rate)
                     data_subsampled = data[subsampled_indices]
 
@@ -97,26 +94,17 @@ class S3DISValidator:
         return np.vstack(points), np.hstack(labels)
 
     def load_s3dis_room_random(self, area, room, subsample_ratio=0.3, seed=42):
-        """
-        Load S3DIS room with random subsampling for better spatial coverage
 
-        Args:
-            area: Area number (1-6)
-            room: Room name
-            subsample_ratio: Fraction of points to keep (0.3 = keep 30% of points)
-            seed: Random seed for reproducibility
-        """
         room_path = f"{self.s3dis_path}/Area_{area}/{room}"
         print(f"Loading {room_path} with {subsample_ratio*100:.0f}% subsampling")
 
-        np.random.seed(seed)  # For reproducibility
+        np.random.seed(seed)
 
         points = []
         labels = []
         total_points_original = 0
         total_points_subsampled = 0
 
-        # Read each annotation file
         anno_path = os.path.join(room_path, "Annotations")
 
         for file in os.listdir(anno_path):
@@ -158,15 +146,7 @@ class S3DISValidator:
             return np.array([]), np.array([])
 
     def load_s3dis_room_voxel(self, area, room, voxel_size=0.03):
-        """
-        Load S3DIS room with voxel-based subsampling
-        Preserves spatial distribution better than uniform/random sampling
 
-        Args:
-            area: Area number (1-6)
-            room: Room name
-            voxel_size: Voxel size for downsampling (0.03 = 3cm voxels)
-        """
         room_path = f"{self.s3dis_path}/Area_{area}/{room}"
         print(f"Loading {room_path} with voxel size {voxel_size}m")
 
@@ -218,10 +198,7 @@ class S3DISValidator:
         return points_with_color, labels_subsampled
 
     def voxel_subsample_indices(self, points, voxel_size):
-        """
-        Get indices for voxel-based subsampling
-        Returns one point per voxel (the one closest to voxel center)
-        """
+
         # Compute voxel indices
         voxel_indices = np.floor(points / voxel_size).astype(int)
 
@@ -258,16 +235,7 @@ class S3DISValidator:
         return np.array(selected_indices)
 
     def load_s3dis_room_adaptive(self, area, room, subsample_rates=None):
-        """
-        Load S3DIS room with class-aware subsampling
-        Different subsampling rates for different classes
 
-        Args:
-            area: Area number (1-6)
-            room: Room name
-            subsample_rates: Dict of class_name: subsample_ratio
-                            e.g., {'wall': 0.3, 'floor': 0.2, 'chair': 0.5}
-        """
         if subsample_rates is None:
             # Default: subsample large structures more, keep small objects
             subsample_rates = {
@@ -294,7 +262,6 @@ class S3DISValidator:
         total_points_original = 0
         total_points_subsampled = 0
 
-        # Read each annotation file
         anno_path = os.path.join(room_path, "Annotations")
 
         for file in os.listdir(anno_path):
@@ -342,18 +309,18 @@ class S3DISValidator:
 
     def load_and_process_room(self, area, room, subsample_method="voxel"):
         """
-        Load S3DIS room and process with appropriate subsampling
+        Load S3DIS and subsample
         """
         if subsample_method == "uniform":
-            # Take every 3rd point
+            # Take every Nth point
             points, labels = self.load_s3dis_room_uniform(area, room, subsample_rate=3)
         elif subsample_method == "random":
-            # Keep 30% of points randomly
+            # Keep points randomly
             points, labels = self.load_s3dis_room_random(
                 area, room, subsample_ratio=0.3
             )
         elif subsample_method == "voxel":
-            # 3cm voxel grid (recommended)
+            # voxel grid
             points, labels = self.load_s3dis_room_voxel(area, room, voxel_size=0.02)
         elif subsample_method == "adaptive":
             # Different rates per class
