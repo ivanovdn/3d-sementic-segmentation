@@ -678,6 +678,7 @@ class StructuralRANSAC:
         beam_mask = predictions == 3
         window_mask = predictions == 5
         door_mask = predictions == 6
+        bookcase_mask = predictions == 10
         board_mask = predictions == 11
 
         # refine walls
@@ -726,5 +727,14 @@ class StructuralRANSAC:
                 "parent": wall_name,
             }
             print("added board")
+
+        # add bookcase
+        if sum(bookcase_mask):
+            self.segments[f"bookcase_{wall_name}"] = {
+                "indices": wall_indices[bookcase_mask],
+                "type": "bookcase",
+                "parent": wall_name,
+            }
+            print("added bookcase")
 
         return self.segments
