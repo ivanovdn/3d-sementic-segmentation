@@ -2,11 +2,13 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import open3d as o3d
+import yaml
 
 
 class SemanticSegmentor:
-    def __init__(self, s3dis_validator, area, room, subsample_method, ransac_segmentor):
+    def __init__(self, s3dis_validator, ransac_segmentor):
         # self.s3dis_validator = s3dis_validator
+        self.config = self._read_config()
         self.classes = {
             "ceiling": 0,
             "floor": 1,
@@ -22,17 +24,20 @@ class SemanticSegmentor:
             "board": 11,
             "clutter": 12,
         }
-        self.area = area
-        self.room = room
-        self.subsample_method = subsample_method
+
         self.points, self.labels = s3dis_validator.load_and_process_room(
-            self.area, self.room, self.subsample_method
+            self.config["area"], self.config["room"], self.config["subsample_method"]
         )
 
         self.pcd = self._create_pcd()
 
         self.ransac_segmentor = ransac_segmentor(self.pcd, downsample=False)
         self.ransac_segmentor.segment()
+
+    def _read_config(self):
+        with open("config.yaml") as f:
+            config = yaml.safe_load(f)
+        return config
 
     def _create_pcd(self):
         pcd = o3d.geometry.PointCloud()
