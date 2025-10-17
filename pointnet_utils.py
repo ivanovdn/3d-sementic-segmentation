@@ -113,7 +113,7 @@ class PointnetInference:
         return data_blocks, block_indices
 
     def reconstruct_furniture_labels(
-        self, points, predictions, confidences, block_indices
+        self, points, predictions, confidences, block_indices, type="wall"
     ):
         """Reconstruct labels for furniture points using weighted voting"""
 
@@ -135,6 +135,9 @@ class PointnetInference:
 
         # Handle points with no votes
         no_votes_mask = np.sum(vote_weights, axis=1) == 0
-        point_labels[no_votes_mask] = 2  # clutter
+        if type == "wall":
+            point_labels[no_votes_mask] = 2  # wall
+        else:
+            point_labels[no_votes_mask] = 12  # clutter
 
         return point_labels
