@@ -684,29 +684,32 @@ class StructuralRANSAC:
 
     def refine_wall_segment(self, wall_name, wall_indices, predictions):
         """
-        Refine a single wall segment based on predictions
+        Refine a single wall segment based on NN predictions
         """
         refined = {}
 
-        wall_mask = predictions == 2
         beam_mask = predictions == 3
+        column_mask = predictions == 4
         window_mask = predictions == 5
         door_mask = predictions == 6
         bookcase_mask = predictions == 10
         board_mask = predictions == 11
 
-        # refine walls
-        if np.any(wall_mask):
-            self.segments[wall_name]["indices"] = wall_indices[wall_mask]
-
         # add beam
         if sum(beam_mask) > 300:
-            self.segments[f"beam_{wall_name}"] = {
+            refined[f"beam_{wall_name}"] = {
                 "indices": wall_indices[beam_mask],
                 "type": "beam",
                 "parent": wall_name,
             }
-            print("added beam")
+
+        # add column
+        if sum(column_mask) > 300:
+            refined[f"column_{wall_name}"] = {
+                "indices": wall_indices[column_mask],
+                "type": "column",
+                "parent": wall_name,
+            }
 
         # Add windows
         if sum(window_mask) > 300:
@@ -714,41 +717,37 @@ class StructuralRANSAC:
             # Cluster to separate multiple windows
             window_clusters = self.cluster_points(window_indices, eps=0.3)
             for i, cluster in enumerate(window_clusters):
-                self.segments[f"window_{wall_name}_{i}"] = {
+                refined[f"window_{wall_name}_{i}"] = {
                     "indices": cluster,
                     "type": "window",
                     "parent": wall_name,
                 }
-                print("added window")
 
         # Add doors
         if sum(door_mask) > 300:
             door_indices = wall_indices[door_mask]
             door_clusters = self.cluster_points(door_indices, eps=0.3)
             for i, cluster in enumerate(door_clusters):
-                self.segments[f"door_{wall_name}_{i}"] = {
+                refined[f"door_{wall_name}_{i}"] = {
                     "indices": cluster,
                     "type": "door",
                     "parent": wall_name,
                 }
-                print("added door")
 
         # add board
         if sum(board_mask):
-            self.segments[f"board_{wall_name}"] = {
+            refined[f"board_{wall_name}"] = {
                 "indices": wall_indices[board_mask],
                 "type": "board",
                 "parent": wall_name,
             }
-            print("added board")
 
         # add bookcase
         if sum(bookcase_mask):
-            self.segments[f"bookcase_{wall_name}"] = {
+            refined[f"bookcase_{wall_name}"] = {
                 "indices": wall_indices[bookcase_mask],
                 "type": "bookcase",
                 "parent": wall_name,
             }
-            print("added bookcase")
 
-        return self.segments
+        return refined
