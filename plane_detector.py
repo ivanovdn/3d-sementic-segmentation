@@ -281,7 +281,7 @@ class StructuralRANSAC:
 
     # ============ MAIN PIPELINE ============
 
-    def segment(self):
+    def segment(self, region_growing=False):
         """
         Main segmentation pipeline
         """
@@ -289,7 +289,7 @@ class StructuralRANSAC:
         start_time = time.time()
 
         self.segment_floor_ceiling()
-        self.segment_walls_improved()
+        self.segment_walls_improved(region_growing)
 
         print(f"Segmentation complete in {time.time() - start_time:.2f} seconds")
         print(f"Found: {len(self.segments)} structural elements")
@@ -354,7 +354,11 @@ class StructuralRANSAC:
 
         return vis_cloud
 
-    def segment_walls_improved(self, num_walls=15):
+    def segment_walls_improved(
+        self,
+        region_growing,
+        num_walls=15,
+    ):
 
         print("Detecting walls with validation...")
 
@@ -403,11 +407,14 @@ class StructuralRANSAC:
 
         for i, wall_data in enumerate(merged_walls):
             # Refine with region growing
-            refined_indices = self.region_grow_plane(
-                wall_data["plane"],
-                wall_data["indices"],
-                growth_threshold=0.15,
-            )
+            refined_indices = wall_data["indices"]
+
+            if region_growing:
+                refined_indices = self.region_grow_plane(
+                    wall_data["plane"],
+                    wall_data["indices"],
+                    growth_threshold=0.15,
+                )
 
             self.segments[f"wall_{i}"] = {
                 "plane": wall_data["plane"],
@@ -416,28 +423,31 @@ class StructuralRANSAC:
             }
             wall_count += 1
             print(f"  Wall {i} found: {len(refined_indices)} points")
+            self.remaining_indices = np.setdiff1d(
+                self.remaining_indices, refined_indices
+            )
 
-        # Optionally add furniture as separate category
-        for i, furniture_data in enumerate(furniture_candidates):
-            self.segments[f"furniture_{i}"] = {
-                "plane": furniture_data["plane"],
-                "indices": furniture_data["indices"],
-                "type": "furniture",
-            }
+        # # Optionally add furniture as separate category
+        # for i, furniture_data in enumerate(furniture_candidates):
+        #     self.segments[f"furniture_{i}"] = {
+        #         "plane": furniture_data["plane"],
+        #         "indices": furniture_data["indices"],
+        #         "type": "furniture",
+        #     }
 
-        print(
-            f"  Total: {wall_count} walls, {len(furniture_candidates)} furniture pieces"
-        )
+        # print(
+        #     f"  Total: {wall_count} walls, {len(furniture_candidates)} furniture pieces"
+        # )
 
-        # Restore remaining indices (excluding confirmed walls)
-        used_indices = []
-        for segment_name, segment_data in self.segments.items():
-            if "wall" in segment_name:
-                used_indices.extend(segment_data["indices"])
+        # # Restore remaining indices (excluding confirmed walls)
+        # used_indices = []
+        # for segment_name, segment_data in self.segments.items():
+        #     if "wall" in segment_name:
+        #         used_indices.extend(segment_data["indices"])
 
-        self.remaining_indices = np.setdiff1d(
-            self.remaining_indices, np.array(used_indices)
-        )
+        # self.remaining_indices = np.setdiff1d(
+        #     self.remaining_indices, np.array(used_indices)
+        # )
 
     def classify_vertical_plane(self, plane, indices, room_height, floor_z, ceiling_z):
         """
