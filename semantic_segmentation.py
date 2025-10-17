@@ -32,7 +32,9 @@ class SemanticSegmentor:
         self.pcd = self._create_pcd()
         self.pointnet_segmentor = pointnet_segmentor()
         self.ransac_segmentor = ransac_segmentor(self.pcd, downsample=False)
-        self.ransac_segmentor.segment(self.config["region_growing"])
+        self.ransac_segmentor.segment(
+            self.config["segment_walls_improved"], self.config["region_growing"]
+        )
 
     def _read_config(self):
         with open("config.yaml") as f:
