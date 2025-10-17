@@ -6,7 +6,7 @@ import yaml
 
 
 class SemanticSegmentor:
-    def __init__(self, s3dis_validator, ransac_segmentor):
+    def __init__(self, s3dis_validator, ransac_segmentor, pointnet_segmentor):
         # self.s3dis_validator = s3dis_validator
         self.config = self._read_config()
         self.classes = {
@@ -30,7 +30,7 @@ class SemanticSegmentor:
         )
 
         self.pcd = self._create_pcd()
-
+        self.pointnet_segmentor = pointnet_segmentor()
         self.ransac_segmentor = ransac_segmentor(self.pcd, downsample=False)
         self.ransac_segmentor.segment()
 
