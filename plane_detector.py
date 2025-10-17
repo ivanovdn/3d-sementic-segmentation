@@ -281,7 +281,7 @@ class StructuralRANSAC:
 
     # ============ MAIN PIPELINE ============
 
-    def segment(self, region_growing=False):
+    def segment(self, segment_walls_improved, region_growing):
         """
         Main segmentation pipeline
         """
@@ -289,7 +289,10 @@ class StructuralRANSAC:
         start_time = time.time()
 
         self.segment_floor_ceiling()
-        self.segment_walls_improved(region_growing)
+        if segment_walls_improved:
+            self.segment_walls_improved(region_growing)
+        else:
+            self.segment_walls()
 
         print(f"Segmentation complete in {time.time() - start_time:.2f} seconds")
         print(f"Found: {len(self.segments)} structural elements")
