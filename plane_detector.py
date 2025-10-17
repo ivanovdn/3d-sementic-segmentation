@@ -198,7 +198,7 @@ class StructuralRANSAC:
             )
             print(f"  Ceiling found: {len(ceiling_inliers)} points")
 
-    def segment_walls(self, num_walls=10):
+    def segment_walls(self, region_growing, num_walls=10):
         """
         Detect walls
         """
@@ -225,7 +225,8 @@ class StructuralRANSAC:
                 continue
 
             # Region growing
-            # wall_inliers = self.region_grow_plane(wall_plane, wall_inliers)
+            if region_growing:
+                wall_inliers = self.region_grow_plane(wall_plane, wall_inliers)
 
             if len(wall_inliers) > self.params["min_plane_points"]:
                 self.segments[f"wall_{wall_count}"] = {
@@ -292,7 +293,7 @@ class StructuralRANSAC:
         if segment_walls_improved:
             self.segment_walls_improved(region_growing)
         else:
-            self.segment_walls()
+            self.segment_walls(region_growing)
 
         print(f"Segmentation complete in {time.time() - start_time:.2f} seconds")
         print(f"Found: {len(self.segments)} structural elements")
