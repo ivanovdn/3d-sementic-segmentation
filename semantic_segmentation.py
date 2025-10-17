@@ -74,3 +74,36 @@ class SemanticSegmentor:
             points, all_predictions, all_confidences, block_indices, type
         )
         return predictions
+
+    def refind_walls(self):
+        refined_walls = {}
+        for segment in self.ransac_segmentor.segments:
+            if segment.startswith("wall"):
+                idx = self.ransac_segmentor.segments[segment]["indices"]
+                wall_points = self.points[idx]
+                predictions = self.pointnet_segmentation(wall_points, "wall")
+                refined = self.ransac_segmentor.refine_wall_segment(
+                    segment, idx, predictions
+                )
+                refined_walls.update(refined)
+        self.ransac_segmentor.segments.update(refined_walls)
+
+    def refined_with_pointnet(self):
+        rest_points = self.points[self.ransac_segmentor.remaining_indices]
+        predictions = self.pointnet_segmentation(rest_points, "all")
+        pointnet_refined = {}
+        refined_indices = []
+        for class_name, class_id in self.classes.items():
+            class_mask = predictions == class_id
+            if sum(class_mask) > 300 and class_id not in (0, 1):
+                idx = self.ransac_segmentor.remaining_indices[class_mask]
+                pointnet_refined[f"{class_name}_pointnet"] = {
+                    "indices": idx,
+                    "type": class_name,
+                    "parent": "rest",
+                }
+                refined_indices.extend(idx)
+        self.ransac_segmentor.segments.update(pointnet_refined)
+        self.ransac_segmentor.remaining_indices = np.setdiff1d(
+            self.ransac_segmentor.remaining_indices, refined_indices
+        )
