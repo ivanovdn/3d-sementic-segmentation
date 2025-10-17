@@ -62,3 +62,15 @@ class SemanticSegmentor:
             if base_type in self.classes:
                 point_labels[data["indices"]] = self.classes[base_type]
         return point_labels
+
+    def pointnet_segmentation(self, points, type):
+        data_blocks, block_indices = self.pointnet_segmentor.create_pointnet_blocks(
+            points, self.config["block_size"], self.config["stride"]
+        )
+        all_predictions, all_confidences = self.pointnet_segmentor.inference(
+            data_blocks, type
+        )
+        predictions = self.pointnet_segmentor.reconstruct_furniture_labels(
+            points, all_predictions, all_confidences, block_indices, type
+        )
+        return predictions
