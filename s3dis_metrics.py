@@ -3,47 +3,60 @@ from sklearn.metrics import classification_report, confusion_matrix
 
 
 class SegmentationMetrics:
-    def __init__(self, gt_labels, pred_labels, class_names):
-        self.gt = gt_labels
-        self.pred = pred_labels
-        self.classes = class_names
-        self.structural_only = [0, 1, 2, 3, 4, 5, 6]
+    def __init__(self, elements):
+        self.classes = {
+            "ceiling": 0,
+            "floor": 1,
+            "wall": 2,
+            "beam": 3,
+            "column": 4,
+            "window": 5,
+            "door": 6,
+            "table": 7,
+            "chair": 8,
+            "sofa": 9,
+            "bookcase": 10,
+            "board": 11,
+            "clutter": 12,
+        }
+        self.elements = elements
+        self.counter = 0
+        self.mean_iou = 0.0
+        self.results = {k: 0.0 for k in self.elements}
 
-    def compute_metrics(self):
-
+    def compute_metrics(self, labels, preds):
         results = {}
+        mask = labels >= 0
+        results["overall_acc"] = np.mean(preds[mask] == labels[mask])
 
-        mask = self.gt >= 0
-        results["overall_acc"] = np.mean(self.pred[mask] == self.gt[mask])
+        results["iou_per_class"] = self.compute_iou(labels, preds)
 
-        results["iou_per_class"] = self.compute_iou()
-
-        struct_mask = np.isin(self.gt, self.structural_only)
-        results["structural_acc"] = np.mean(
-            self.pred[struct_mask] == self.gt[struct_mask]
-        )
-
-        results["confusion"] = confusion_matrix(self.gt[mask], self.pred[mask])
+        results["confusion"] = confusion_matrix(labels[mask], preds[mask])
 
         # results['classification_report'] = classification_report(
-        #     self.gt[mask], self.pred[mask],
+        #     labels[mask], preds[mask],
         #     target_names=self.classes,
         #     output_dict=True
         # )
-
+        self.counter += 1
         return results
 
-    def compute_iou(self):
-
+    def compute_iou(self, labels, preds):
         ious = {}
         for class_id, class_name in enumerate(self.classes):
 
-            gt_mask = self.gt == class_id
-            pred_mask = self.pred == class_id
+            gt_mask = labels == class_id
+            pred_mask = preds == class_id
 
             intersection = np.sum(gt_mask & pred_mask)
             union = np.sum(gt_mask | pred_mask)
 
             ious[class_name] = intersection / union if union > 0 else 0
+            if class_name in self.elements:
+                self.results[class_name] += intersection / union if union > 0 else 0
 
         return ious
+
+    def compute_mean_iou(self):
+        self.results = {k: v / self.counter for k, v in self.results.items()}
+        self.mean_iou = np.sum([i for i in self.results.values()]) / len(self.elements)
