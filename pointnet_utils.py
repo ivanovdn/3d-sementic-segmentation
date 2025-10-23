@@ -25,8 +25,8 @@ class PointnetInference:
         all_confidences = []
         with torch.no_grad():
             for i, block in enumerate(data_blocks):
-                if i % 5 == 0:
-                    print(f"Processing furniture block {i+1}/{len(data_blocks)}")
+                # if i % 5 == 0:
+                #     print(f"Processing furniture block {i+1}/{len(data_blocks)}")
 
                 block_tensor = torch.FloatTensor(block).transpose(0, 1).unsqueeze(0)
                 block_tensor = block_tensor.to(self.device)
