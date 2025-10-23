@@ -1,4 +1,5 @@
 import yaml
+from tqdm import tqdm
 
 import wandb
 from plane_detector import StructuralRANSAC
@@ -10,7 +11,7 @@ from semantic_segmentation import SemanticSegmentor
 token = "415dd2b149285b382a2e695e3023f569695b8398"
 wandb.login(key=token)
 
-rooms = ["office_1", "office_2", "office_3"]
+rooms = ["office_1", "office_2", "office_3", "office_4", "office_5", "office_6"]
 
 with open("config.yaml") as f:
     config = yaml.safe_load(f)
@@ -19,7 +20,7 @@ s_val = S3DISValidator("../s3DIS/Stanford3dDataset_v1.2_Aligned_Version/")
 
 metrics = SegmentationMetrics(config["elements"])
 
-for room in rooms:
+for room in tqdm(rooms):
     config["room"] = room
     sem_seg = SemanticSegmentor(s_val, StructuralRANSAC, PointnetInference, config)
     if config["approach"] == "ransac-pointnet":
