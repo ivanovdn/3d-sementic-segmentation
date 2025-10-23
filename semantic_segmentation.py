@@ -27,7 +27,10 @@ class SemanticSegmentor:
         }
 
         self.points, self.labels = s3dis_validator.load_and_process_room(
-            self.config["area"], self.config["room"], self.config["subsample_method"]
+            self.config["area"],
+            self.config["room"],
+            self.config["subsample_method"],
+            self.config["subsample_ratio"],
         )
 
         self.pcd = self._create_pcd()

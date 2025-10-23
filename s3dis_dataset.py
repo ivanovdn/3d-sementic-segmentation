@@ -145,7 +145,7 @@ class S3DISValidator:
         else:
             return np.array([]), np.array([])
 
-    def load_s3dis_room_voxel(self, area, room, voxel_size=0.03):
+    def load_s3dis_room_voxel(self, area, room, voxel_size):
 
         room_path = f"{self.s3dis_path}/Area_{area}/{room}"
         print(f"Loading {room_path} with voxel size {voxel_size}m")
@@ -307,7 +307,7 @@ class S3DISValidator:
 
         return np.vstack(points), np.hstack(labels)
 
-    def load_and_process_room(self, area, room, subsample_method="voxel"):
+    def load_and_process_room(self, area, room, subsample_method, subsample_ratio):
         """
         Load S3DIS and subsample
         """
@@ -321,7 +321,7 @@ class S3DISValidator:
             )
         elif subsample_method == "voxel":
             # voxel grid
-            points, labels = self.load_s3dis_room_voxel(area, room, voxel_size=0.02)
+            points, labels = self.load_s3dis_room_voxel(area, room, subsample_ratio)
         elif subsample_method == "adaptive":
             # Different rates per class
             points, labels = self.load_s3dis_room_adaptive(area, room)
