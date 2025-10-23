@@ -6,9 +6,10 @@ import yaml
 
 
 class SemanticSegmentor:
-    def __init__(self, s3dis_validator, ransac_segmentor, pointnet_segmentor):
+    def __init__(self, s3dis_validator, ransac_segmentor, pointnet_segmentor, config):
         # self.s3dis_validator = s3dis_validator
-        self.config = self._read_config()
+        # self.config = self._read_config()
+        self.config = config
         self.classes = {
             "ceiling": 0,
             "floor": 1,
@@ -32,9 +33,6 @@ class SemanticSegmentor:
         self.pcd = self._create_pcd()
         self.pointnet_segmentor = pointnet_segmentor()
         self.ransac_segmentor = ransac_segmentor(self.pcd, downsample=False)
-        self.ransac_segmentor.segment(
-            self.config["segment_walls_improved"], self.config["region_growing"]
-        )
 
     def _read_config(self):
         with open("config.yaml") as f:
@@ -46,6 +44,13 @@ class SemanticSegmentor:
         pcd.points = o3d.utility.Vector3dVector(self.points[:, :3])
         pcd.colors = o3d.utility.Vector3dVector(self.points[:, 3:])
         return pcd
+
+    def ransac_segment(self):
+        self.ransac_segmentor.segment(
+            self.config["ransac_with_walls"],
+            self.config["segment_walls_improved"],
+            self.config["region_growing"],
+        )
 
     def map_ransac_to_s3dis(
         self,
