@@ -4,7 +4,7 @@ import numpy as np
 import open3d as o3d
 
 
-class S3DISValidator:
+class PointCloudDataset:
     def __init__(self, file_path):
         self.class_map = {
             "ceiling": 0,
@@ -335,11 +335,7 @@ class S3DISValidator:
 
     def read_pcd_and_extract_points(self):
         """
-        Read mesh file and extract point cloud with colors
-
-        Args:
-            mesh_path: Path to mesh file (.ply, .obj, .off, etc.)
-            num_points: Number of points to sample from mesh
+        Read pcd file and extract point cloud with colors
 
         Returns:
             points: numpy array of shape (N, 6) containing [x, y, z, r, g, b]
