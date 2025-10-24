@@ -2,7 +2,7 @@ import yaml
 from tqdm import tqdm
 
 import wandb
-from pcd_dataset import S3DISValidator
+from pcd_dataset import PointCloudDataset
 from plane_detector import StructuralRANSAC
 from pointnet_utils import PointnetInference
 from s3dis_metrics import SegmentationMetrics
@@ -16,7 +16,7 @@ rooms = ["office_1", "office_2", "office_3", "office_4", "office_5", "office_6"]
 with open("config.yaml") as f:
     config = yaml.safe_load(f)
 
-s_val = S3DISValidator("../s3DIS/Stanford3dDataset_v1.2_Aligned_Version/")
+s_val = PointCloudDataset("../s3DIS/Stanford3dDataset_v1.2_Aligned_Version/")
 
 metrics = SegmentationMetrics(config["elements"])
 
