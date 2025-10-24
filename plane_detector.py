@@ -10,14 +10,9 @@ from sklearn.neighbors import KDTree
 
 
 class StructuralRANSAC:
-    def __init__(self, point_cloud, voxel_size=0.02, downsample=True):
+    def __init__(self, point_cloud):
 
-        # self.original_cloud = point_cloud
-
-        if downsample:
-            self.cloud = point_cloud.voxel_down_sample(voxel_size)
-        else:
-            self.cloud = point_cloud
+        self.cloud = point_cloud
 
         self.cloud.estimate_normals(
             search_param=o3d.geometry.KDTreeSearchParamHybrid(radius=0.1, max_nn=30)

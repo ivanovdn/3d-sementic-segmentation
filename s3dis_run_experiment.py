@@ -2,9 +2,9 @@ import yaml
 from tqdm import tqdm
 
 import wandb
+from pcd_dataset import S3DISValidator
 from plane_detector import StructuralRANSAC
 from pointnet_utils import PointnetInference
-from s3dis_dataset import S3DISValidator
 from s3dis_metrics import SegmentationMetrics
 from semantic_segmentation import SemanticSegmentor
 

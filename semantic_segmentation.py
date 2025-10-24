@@ -40,7 +40,7 @@ class SemanticSegmentor:
 
         # Segmentors
         self.pointnet_segmentor = pointnet_segmentor()
-        self.ransac_segmentor = ransac_segmentor(self.pcd, downsample=False)
+        self.ransac_segmentor = ransac_segmentor(self.pcd)
 
     def _read_config(self):
         with open("config.yaml") as f:
