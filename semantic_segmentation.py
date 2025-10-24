@@ -125,3 +125,44 @@ class SemanticSegmentor:
 
     def visualize_pcd(self):
         o3d.visualization.draw_geometries([self.pcd])
+
+    def visualize_segments(self, predictions):
+        """
+        Visualize segmentation results
+        """
+        # Color map for different segment types
+        colors = {
+            "floor": [0.4, 0.2, 0.1],  # dark brown
+            "ceiling": [0.8, 0.8, 0.8],  # light gray
+            "wall": [0.6, 0.6, 0.5],  # beige
+            "window": [0.0, 0.6, 1.0],  # bright blue
+            "door": [1.0, 0.6, 0.0],  # bright orange
+            "table": [0.0, 0.8, 0.0],  #  bright green
+            "chair": [0.0, 0.8, 0.0],  #  bright green
+            "board": [0.2, 0.2, 0.2],  # dark
+            "beam": [1, 1, 0],  # Yellow
+            "column": [0.7, 0.0, 0.7],  # bright purple
+            "unknown": [0.8, 0.2, 0.2],  # Gray
+        }
+
+        # Create colored point cloud
+        point_colors = np.ones((len(self.points), 3)) * 0.5  # Default gray
+        point_colors[:] = [0.8, 0.2, 0.2]
+
+        for class_name, class_id in self.classes.items():
+            if class_name in self.config["elements"]:
+                mask = predictions == class_id
+                color = colors.get(class_name, colors["unknown"])
+                point_colors[mask] = color
+
+        # Create Open3D point cloud for visualization
+        vis_cloud = o3d.geometry.PointCloud()
+        vis_cloud.points = o3d.utility.Vector3dVector(self.points[:, :3])
+        vis_cloud.colors = o3d.utility.Vector3dVector(point_colors)
+
+        # Visualize
+        o3d.visualization.draw_geometries(
+            [vis_cloud], window_name="Structural Segmentation", width=1024, height=768
+        )
+
+        return vis_cloud
