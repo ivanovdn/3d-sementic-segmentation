@@ -26,14 +26,19 @@ class SemanticSegmentor:
             "clutter": 12,
         }
 
-        self.points, self.labels = s3dis_validator.load_and_process_room(
-            self.config["area"],
-            self.config["room"],
-            self.config["subsample_method"],
-            self.config["subsample_ratio"],
-        )
+        if config["dataset"] == "s3dis":
+            self.points, self.labels = s3dis_validator.load_and_process_room(
+                self.config["area"],
+                self.config["room"],
+                self.config["subsample_method"],
+                self.config["subsample_ratio"],
+            )
 
-        self.pcd = self._create_pcd()
+            self.pcd = self._create_pcd()
+        else:
+            self.points, self.pcd = s3dis_validator.read_pcd_and_extract_points()
+
+        # Segmentors
         self.pointnet_segmentor = pointnet_segmentor()
         self.ransac_segmentor = ransac_segmentor(self.pcd, downsample=False)
 
@@ -115,3 +120,6 @@ class SemanticSegmentor:
         self.ransac_segmentor.remaining_indices = np.setdiff1d(
             self.ransac_segmentor.remaining_indices, refined_indices
         )
+
+    def visualize_pcd(self):
+        o3d.visualization.draw_geometries([self.pcd])

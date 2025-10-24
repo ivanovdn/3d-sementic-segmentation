@@ -2,11 +2,10 @@ import os
 
 import numpy as np
 import open3d as o3d
-from sklearn.metrics import classification_report, confusion_matrix
 
 
 class S3DISValidator:
-    def __init__(self, s3dis_path):
+    def __init__(self, file_path):
         self.class_map = {
             "ceiling": 0,
             "floor": 1,
@@ -22,12 +21,12 @@ class S3DISValidator:
             "board": 11,
             "clutter": 12,
         }
-        self.structural_classes = [0, 1, 2, 3, 4]  # ceiling, floor, wall, beam, column
-        self.s3dis_path = s3dis_path
+
+        self.file_path = file_path
 
     def load_s3dis_room_full(self, area, room):
         """Load S3DIS room with ground truth labels"""
-        room_path = f"{self.s3dis_path}/Area_{area}/{room}"
+        room_path = f"{self.file_path}/Area_{area}/{room}"
         print(room_path)
         points = []
         labels = []
@@ -55,7 +54,7 @@ class S3DISValidator:
             room: Room name
             subsample_rate: Keep every Nth point (e.g., 3 = keep every 3rd point)
         """
-        room_path = f"{self.s3dis_path}/Area_{area}/{room}"
+        room_path = f"{self.file_path}/Area_{area}/{room}"
         print(f"Loading {room_path} with subsampling rate 1/{subsample_rate}")
 
         points = []
@@ -95,7 +94,7 @@ class S3DISValidator:
 
     def load_s3dis_room_random(self, area, room, subsample_ratio=0.3, seed=42):
 
-        room_path = f"{self.s3dis_path}/Area_{area}/{room}"
+        room_path = f"{self.file_path}/Area_{area}/{room}"
         print(f"Loading {room_path} with {subsample_ratio*100:.0f}% subsampling")
 
         np.random.seed(seed)
@@ -147,7 +146,7 @@ class S3DISValidator:
 
     def load_s3dis_room_voxel(self, area, room, voxel_size):
 
-        room_path = f"{self.s3dis_path}/Area_{area}/{room}"
+        room_path = f"{self.file_path}/Area_{area}/{room}"
         print(f"Loading {room_path} with voxel size {voxel_size}m")
 
         # First load all data
@@ -254,7 +253,7 @@ class S3DISValidator:
                 "clutter": 0.3,  # Moderate subsample
             }
 
-        room_path = f"{self.s3dis_path}/Area_{area}/{room}"
+        room_path = f"{self.file_path}/Area_{area}/{room}"
         print(f"Loading {room_path} with adaptive subsampling")
 
         points = []
@@ -333,3 +332,23 @@ class S3DISValidator:
         #     pcd.colors = o3d.utility.Vector3dVector(points[:, 3:6])
 
         return points, labels
+
+    def read_pcd_and_extract_points(self):
+        """
+        Read mesh file and extract point cloud with colors
+
+        Args:
+            mesh_path: Path to mesh file (.ply, .obj, .off, etc.)
+            num_points: Number of points to sample from mesh
+
+        Returns:
+            points: numpy array of shape (N, 6) containing [x, y, z, r, g, b]
+        """
+
+        pcd = o3d.io.read_point_cloud(self.file_path)
+        points_xyz = np.asarray(pcd.points)
+        colors = np.asarray(pcd.colors)
+
+        # Combine xyz and rgb
+        points = np.concatenate([points_xyz, colors], axis=1)
+        return points, pcd
