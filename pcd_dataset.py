@@ -333,7 +333,7 @@ class PointCloudDataset:
 
         return points, labels
 
-    def read_pcd_and_extract_points(self):
+    def read_pcd_and_extract_points(self, subsample_ratio=None):
         """
         Read pcd file and extract point cloud with colors
 
@@ -342,6 +342,8 @@ class PointCloudDataset:
         """
 
         pcd = o3d.io.read_point_cloud(self.file_path)
+        if subsample_ratio:
+            pcd = pcd.voxel_down_sample(subsample_ratio)
         points_xyz = np.asarray(pcd.points)
         colors = np.asarray(pcd.colors)
 
