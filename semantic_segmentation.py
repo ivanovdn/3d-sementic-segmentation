@@ -36,9 +36,14 @@ class SemanticSegmentor:
 
             self.pcd = self._create_pcd()
         else:
-            self.points, self.pcd = s3dis_validator.read_pcd_and_extract_points(
+            points, pcd = s3dis_validator.read_pcd_and_extract_points(
                 self.config["subsample_ratio"]
             )
+            filtered_pcd, filtered_idx = pcd.remove_statistical_outlier(
+                nb_neighbors=20, std_ratio=2.0
+            )
+            self.pcd = filtered_pcd
+            self.points = points[filtered_idx]
 
         # Segmentors
         self.pointnet_segmentor = pointnet_segmentor()
