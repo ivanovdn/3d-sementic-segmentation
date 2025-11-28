@@ -344,8 +344,15 @@ class PointCloudDataset:
         pcd = o3d.io.read_point_cloud(self.file_path)
         if subsample_ratio:
             pcd = pcd.voxel_down_sample(subsample_ratio)
+        R_yup_to_zup = np.array([[1, 0, 0], [0, 0, 1], [0, 1, 0]])
         points_xyz = np.asarray(pcd.points)
         colors = np.asarray(pcd.colors)
+
+        points_xyz = points_xyz @ R_yup_to_zup.T
+
+        pcd = o3d.geometry.PointCloud()
+        pcd.points = o3d.utility.Vector3dVector(points_xyz)
+        pcd.colors = o3d.utility.Vector3dVector(colors)
 
         # Combine xyz and rgb
         points = np.concatenate([points_xyz, colors], axis=1)
