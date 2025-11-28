@@ -26,7 +26,7 @@ class PointnetInference:
         with torch.no_grad():
             for i, block in enumerate(data_blocks):
                 # if i % 5 == 0:
-                #     print(f"Processing furniture block {i+1}/{len(data_blocks)}")
+                #     print(f"Processing  block {i+1}/{len(data_blocks)}")
 
                 block_tensor = torch.FloatTensor(block).transpose(0, 1).unsqueeze(0)
                 block_tensor = block_tensor.to(self.device)
@@ -112,10 +112,10 @@ class PointnetInference:
 
         return data_blocks, block_indices
 
-    def reconstruct_furniture_labels(
-        self, points, predictions, confidences, block_indices, type="wall"
+    def reconstruct_labels(
+        self, points, predictions, confidences, block_indices, type="all"
     ):
-        """Reconstruct labels for furniture points using weighted voting"""
+        """Reconstruct labels for points using weighted voting"""
 
         num_points = len(points)
         vote_weights = np.zeros((num_points, 13), dtype=np.float32)
