@@ -1,7 +1,6 @@
 *.ply
 *.png
 *.pt
-*.ipynb
 /data
 /.vscode
 .DS_Store
