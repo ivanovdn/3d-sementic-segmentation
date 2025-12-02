@@ -1,6 +1,7 @@
 import numpy as np
 import torch
 import torch.nn.functional as F
+from pathlib import Path
 
 from pointnet2_sem_seg import get_model as get_pointnet2_model
 
@@ -12,8 +13,11 @@ class PointnetInference:
 
     def _get_model(self):
         model = get_pointnet2_model(13)
+        # Get the project root directory (where this file is located)
+        project_root = Path(__file__).parent
+        model_path = project_root / "models" / "best_model.pth"
         checkpoint = torch.load(
-            "./models/best_model.pth", map_location=self.device, weights_only=False
+            str(model_path), map_location=self.device, weights_only=False
         )
         model.load_state_dict(checkpoint["model_state_dict"])
         model = model.to(self.device)
