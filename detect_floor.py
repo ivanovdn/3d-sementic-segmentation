@@ -44,23 +44,23 @@ def segment_floor_ceiling_walls(
         }
     """
 
-    print(f"\n{'='*70}")
-    print(f"COMPLETE FLOOR/CEILING/WALL SEGMENTATION")
-    print(f"{'='*70}")
-    print(f"Total points: {len(points):,}")
+    # print(f"\n{'='*70}")
+    # print(f"COMPLETE FLOOR/CEILING/WALL SEGMENTATION")
+    # print(f"{'='*70}")
+    # print(f"Total points: {len(points):,}")
 
     # Step 1: Get ceiling indices (if not provided)
-    if ceiling_indices is None:
-        print(f"\nStep 1: Detecting ceiling...")
-        # Use your existing ceiling detection
-        # from ceiling_detection import detect_and_refine_ceiling
-        # ceiling_indices = detect_and_refine_ceiling(points)
-    else:
-        print(f"\nStep 1: Using provided ceiling indices")
-        print(f"  Ceiling points: {len(ceiling_indices):,}")
+    # if ceiling_indices is None:
+    #     print(f"\nStep 1: Detecting ceiling...")
+    #     # Use your existing ceiling detection
+    #     # from ceiling_detection import detect_and_refine_ceiling
+    #     # ceiling_indices = detect_and_refine_ceiling(points)
+    # else:
+    #     print(f"\nStep 1: Using provided ceiling indices")
+    #     print(f"  Ceiling points: {len(ceiling_indices):,}")
 
     # Step 2: Remove ceiling, detect floor
-    print(f"\nStep 2: Detecting floor...")
+    # print(f"\nStep 2: Detecting floor...")
 
     # Create mask for non-ceiling points
     non_ceiling_mask = np.ones(len(points), dtype=bool)
@@ -68,7 +68,7 @@ def segment_floor_ceiling_walls(
     non_ceiling_points = points[non_ceiling_mask]
     non_ceiling_indices = np.where(non_ceiling_mask)[0]
 
-    print(f"  Remaining after ceiling removal: {len(non_ceiling_points):,}")
+    # print(f"  Remaining after ceiling removal: {len(non_ceiling_points):,}")
 
     # Detect floor
     if floor_method == "histogram_ransac":
@@ -97,10 +97,10 @@ def segment_floor_ceiling_walls(
     # Map back to original indices
     floor_indices = non_ceiling_indices[floor_indices_local]
 
-    print(f"  Floor points detected: {len(floor_indices):,}")
+    # print(f"  Floor points detected: {len(floor_indices):,}")
 
     # Step 3: Remaining points = walls
-    print(f"\nStep 3: Extracting walls...")
+    # print(f"\nStep 3: Extracting walls...")
 
     all_structural = np.zeros(len(points), dtype=bool)
     all_structural[ceiling_indices] = True
@@ -109,7 +109,7 @@ def segment_floor_ceiling_walls(
     wall_mask = ~all_structural
     wall_indices = np.where(wall_mask)[0]
 
-    print(f"  Wall points: {len(wall_indices):,}")
+    # print(f"  Wall points: {len(wall_indices):,}")
 
     # Get ceiling height
     ceiling_height = (
@@ -117,25 +117,25 @@ def segment_floor_ceiling_walls(
     )
 
     # Summary
-    print(f"\n{'='*70}")
-    print(f"SEGMENTATION SUMMARY")
-    print(f"{'='*70}")
-    print(f"Total points:   {len(points):,}")
-    print(
-        f"Ceiling:        {len(ceiling_indices):,} ({100*len(ceiling_indices)/len(points):.1f}%)"
-    )
-    print(
-        f"Floor:          {len(floor_indices):,} ({100*len(floor_indices)/len(points):.1f}%)"
-    )
-    print(
-        f"Walls:          {len(wall_indices):,} ({100*len(wall_indices)/len(points):.1f}%)"
-    )
+    # print(f"\n{'='*70}")
+    # print(f"SEGMENTATION SUMMARY")
+    # print(f"{'='*70}")
+    # print(f"Total points:   {len(points):,}")
+    # print(
+    #     f"Ceiling:        {len(ceiling_indices):,} ({100*len(ceiling_indices)/len(points):.1f}%)"
+    # )
+    # print(
+    #     f"Floor:          {len(floor_indices):,} ({100*len(floor_indices)/len(points):.1f}%)"
+    # )
+    # print(
+    #     f"Walls:          {len(wall_indices):,} ({100*len(wall_indices)/len(points):.1f}%)"
+    # )
     if floor_height and ceiling_height:
         room_height = ceiling_height - floor_height
         print(
             f"\nRoom height:    {room_height:.3f}m (floor: {floor_height:.3f}m, ceiling: {ceiling_height:.3f}m)"
         )
-    print(f"{'='*70}")
+    # print(f"{'='*70}")
 
     return {
         "ceiling_indices": ceiling_indices,
@@ -181,13 +181,13 @@ def detect_floor_histogram_ransac(
         Floor height (Z coordinate)
     """
 
-    print(f"  Floor detection method: Histogram + RANSAC")
-    print(f"    Bottom slice height: {bottom_slice_height}m")
-    print(f"    RANSAC threshold: {distance_threshold}m")
+    # print(f"  Floor detection method: Histogram + RANSAC")
+    # print(f"    Bottom slice height: {bottom_slice_height}m")
+    # print(f"    RANSAC threshold: {distance_threshold}m")
 
     z_coords = points[:, 2]
 
-    print(f"\n  Z range: [{z_coords.min():.3f}m, {z_coords.max():.3f}m]")
+    # print(f"\n  Z range: [{z_coords.min():.3f}m, {z_coords.max():.3f}m]")
 
     # Step 1: Height histogram to find floor peak
     num_bins = 100
@@ -219,12 +219,12 @@ def detect_floor_histogram_ransac(
     floor_peak_idx = peaks[np.argmin(peak_heights)]
     floor_height_estimate = bin_centers[floor_peak_idx]
 
-    print(f"\n  Histogram analysis:")
-    print(f"    Found {len(peaks)} peaks in bottom 30%")
-    print(f"    Peak heights: {', '.join([f'{h:.3f}m' for h in sorted(peak_heights)])}")
-    print(
-        f"    Lowest peak (floor): {floor_height_estimate:.3f}m ({hist[floor_peak_idx]:,} points)"
-    )
+    # print(f"\n  Histogram analysis:")
+    # print(f"    Found {len(peaks)} peaks in bottom 30%")
+    # print(f"    Peak heights: {', '.join([f'{h:.3f}m' for h in sorted(peak_heights)])}")
+    # print(
+    #     f"    Lowest peak (floor): {floor_height_estimate:.3f}m ({hist[floor_peak_idx]:,} points)"
+    # )
 
     # Step 2: Extract bottom slice around floor peak
     slice_min = floor_height_estimate - bottom_slice_height / 2
@@ -234,10 +234,10 @@ def detect_floor_histogram_ransac(
     slice_points = points[slice_mask]
     slice_indices = np.where(slice_mask)[0]
 
-    print(f"\n  Bottom slice [{slice_min:.3f}m, {slice_max:.3f}m]:")
-    print(
-        f"    Points in slice: {len(slice_points):,} ({100*len(slice_points)/len(points):.1f}% of remaining)"
-    )
+    # print(f"\n  Bottom slice [{slice_min:.3f}m, {slice_max:.3f}m]:")
+    # print(
+    #     f"    Points in slice: {len(slice_points):,} ({100*len(slice_points)/len(points):.1f}% of remaining)"
+    # )
 
     if len(slice_points) < 100:
         print(f"    ❌ ERROR: Too few points in bottom slice")
@@ -257,13 +257,13 @@ def detect_floor_histogram_ransac(
 
     [a, b, c, d] = plane_model
 
-    print(f"\n  RANSAC results:")
-    print(f"    Plane: {a:.4f}x + {b:.4f}y + {c:.4f}z + {d:.4f} = 0")
-    print(f"    Normal: [{a:.3f}, {b:.3f}, {c:.3f}]")
-    print(f"    |Normal Z|: {abs(c):.3f}")
-    print(
-        f"    Inliers: {len(inliers_local):,} / {len(slice_points):,} ({100*len(inliers_local)/len(slice_points):.1f}% of slice)"
-    )
+    # print(f"\n  RANSAC results:")
+    # print(f"    Plane: {a:.4f}x + {b:.4f}y + {c:.4f}z + {d:.4f} = 0")
+    # print(f"    Normal: [{a:.3f}, {b:.3f}, {c:.3f}]")
+    # print(f"    |Normal Z|: {abs(c):.3f}")
+    # print(
+    #     f"    Inliers: {len(inliers_local):,} / {len(slice_points):,} ({100*len(inliers_local)/len(slice_points):.1f}% of slice)"
+    # )
 
     # Check if horizontal
     if abs(c) < 0.9:
@@ -278,9 +278,9 @@ def detect_floor_histogram_ransac(
     # Actual floor height (from plane equation: z = -d/c for horizontal plane)
     floor_height = -d / c if abs(c) > 0.01 else floor_height_estimate
 
-    print(f"\n  ✓ Floor detection complete:")
-    print(f"    Floor height: {floor_height:.3f}m")
-    print(f"    Floor points: {len(floor_indices):,}")
+    # print(f"\n  ✓ Floor detection complete:")
+    # print(f"    Floor height: {floor_height:.3f}m")
+    # print(f"    Floor points: {len(floor_indices):,}")
 
     return floor_indices, floor_height
 

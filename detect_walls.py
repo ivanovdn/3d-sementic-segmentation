@@ -30,8 +30,8 @@ def extract_wall_points(
 
     wall_points = points[wall_mask]
 
-    print(f"Original points: {len(points)}")
-    print(f"Wall points: {len(wall_points)} ({100*len(wall_points)/len(points):.1f}%)")
+    # print(f"Original points: {len(points)}")
+    # print(f"Wall points: {len(wall_points)} ({100*len(wall_points)/len(points):.1f}%)")
 
     return wall_points, wall_mask
 
@@ -60,7 +60,7 @@ def compute_normals(points, radius=0.1, max_nn=30):
 
     normals = np.asarray(pcd.normals)
 
-    print(f"Computed normals for {len(normals)} points")
+    # print(f"Computed normals for {len(normals)} points")
 
     return normals, pcd
 
@@ -86,11 +86,11 @@ def filter_vertical_points(points, normals, vertical_threshold=0.1):
     vertical_points = points[vertical_mask]
     vertical_normals = normals[vertical_mask]
 
-    print(f"Wall points: {len(points)}")
-    print(
-        f"Vertical wall points: {len(vertical_points)} "
-        f"({100*len(vertical_points)/len(points):.1f}%)"
-    )
+    # print(f"Wall points: {len(points)}")
+    # print(
+    #     f"Vertical wall points: {len(vertical_points)} "
+    #     f"({100*len(vertical_points)/len(points):.1f}%)"
+    # )
 
     return vertical_points, vertical_normals, vertical_mask
 
@@ -144,18 +144,18 @@ def extract_walls_complete_pipeline(
         }
     """
 
-    print(f"\n{'='*70}")
-    print(f"COMPLETE WALL EXTRACTION PIPELINE")
-    print(f"{'='*70}")
-    print(f"Input points: {len(points):,}")
-    print(f"Floor height: {floor_height:.3f}m")
-    print(f"Ceiling height: {ceiling_height:.3f}m")
-    print(f"Safety margins: floor={floor_margin}m, ceiling={ceiling_margin}m")
+    # print(f"\n{'='*70}")
+    # print(f"COMPLETE WALL EXTRACTION PIPELINE")
+    # print(f"{'='*70}")
+    # print(f"Input points: {len(points):,}")
+    # print(f"Floor height: {floor_height:.3f}m")
+    # print(f"Ceiling height: {ceiling_height:.3f}m")
+    # print(f"Safety margins: floor={floor_margin}m, ceiling={ceiling_margin}m")
 
     # STEP 1: Height-based filtering
-    print(f"\n{'─'*70}")
-    print(f"STEP 1: Height-based filtering")
-    print(f"{'─'*70}")
+    # print(f"\n{'─'*70}")
+    # print(f"STEP 1: Height-based filtering")
+    # print(f"{'─'*70}")
 
     wall_points_step1, wall_mask_step1 = extract_wall_points(
         points,
@@ -173,21 +173,21 @@ def extract_walls_complete_pipeline(
     )
 
     # STEP 2: Normal computation
-    print(f"\n{'─'*70}")
-    print(f"STEP 2: Normal computation")
-    print(f"{'─'*70}")
-    print(f"  Normal radius: {normal_radius}m")
-    print(f"  Max neighbors: {max_nn}")
+    # print(f"\n{'─'*70}")
+    # print(f"STEP 2: Normal computation")
+    # print(f"{'─'*70}")
+    # print(f"  Normal radius: {normal_radius}m")
+    # print(f"  Max neighbors: {max_nn}")
 
     normals_step2, pcd = compute_normals(
         wall_points_step1, radius=normal_radius, max_nn=max_nn
     )
 
     # STEP 3: Vertical surface filtering
-    print(f"\n{'─'*70}")
-    print(f"STEP 3: Vertical surface filtering")
-    print(f"{'─'*70}")
-    print(f"  Vertical threshold: |normal_z| < {vertical_threshold}")
+    # print(f"\n{'─'*70}")
+    # print(f"STEP 3: Vertical surface filtering")
+    # print(f"{'─'*70}")
+    # print(f"  Vertical threshold: |normal_z| < {vertical_threshold}")
 
     vertical_points, vertical_normals, vertical_mask = filter_vertical_points(
         wall_points_step1, normals_step2, vertical_threshold=vertical_threshold
@@ -196,31 +196,31 @@ def extract_walls_complete_pipeline(
     # Map back to original indices
     vertical_indices = step1_indices[vertical_mask]
 
-    print(
-        f"  Non-vertical removed: {len(wall_points_step1) - len(vertical_points):,} points "
-        f"({100*(len(wall_points_step1) - len(vertical_points))/len(wall_points_step1):.1f}%)"
-    )
+    # print(
+    #     f"  Non-vertical removed: {len(wall_points_step1) - len(vertical_points):,} points "
+    #     f"({100*(len(wall_points_step1) - len(vertical_points))/len(wall_points_step1):.1f}%)"
+    # )
 
     # Summary
-    print(f"\n{'='*70}")
-    print(f"PIPELINE SUMMARY")
-    print(f"{'='*70}")
-    print(f"Input points:                 {len(points):,}")
-    print(
-        f"After Step 1 (height filter): {len(wall_points_step1):,} "
-        f"({100*len(wall_points_step1)/len(points):.1f}%)"
-    )
-    print(f"After Step 2 (normals):       {len(wall_points_step1):,} (same)")
-    print(
-        f"After Step 3 (vertical):      {len(vertical_points):,} "
-        f"({100*len(vertical_points)/len(points):.1f}%)"
-    )
-    print(f"\n✓ Final wall points: {len(vertical_points):,}")
-    print(
-        f"  Total reduction: {len(points) - len(vertical_points):,} "
-        f"({100*(len(points) - len(vertical_points))/len(points):.1f}%)"
-    )
-    print(f"{'='*70}")
+    # print(f"\n{'='*70}")
+    # print(f"PIPELINE SUMMARY")
+    # print(f"{'='*70}")
+    # print(f"Input points:                 {len(points):,}")
+    # print(
+    #     f"After Step 1 (height filter): {len(wall_points_step1):,} "
+    #     f"({100*len(wall_points_step1)/len(points):.1f}%)"
+    # )
+    # print(f"After Step 2 (normals):       {len(wall_points_step1):,} (same)")
+    # print(
+    #     f"After Step 3 (vertical):      {len(vertical_points):,} "
+    #     f"({100*len(vertical_points)/len(points):.1f}%)"
+    # )
+    # print(f"\n✓ Final wall points: {len(vertical_points):,}")
+    # print(
+    #     f"  Total reduction: {len(points) - len(vertical_points):,} "
+    #     f"({100*(len(points) - len(vertical_points))/len(points):.1f}%)"
+    # )
+    # print(f"{'='*70}")
 
     return {
         "wall_points": vertical_points,
@@ -418,53 +418,53 @@ def detect_walls_ransac_clustering(
     min_wall_height=1.5,
     min_wall_length=0.80,  # Increased from 0.1!
     max_wall_thickness=0.25,
-    min_height_ratio=0.50,  # NEW: wall must span 50% of room height
+    min_height_ratio=0.50,
     max_iterations=30,
 ):
     """
     Detect walls using RANSAC + DBSCAN clustering (ROBUST VERSION)
     """
 
-    print(f"\n{'='*70}")
-    print(f"WALL DETECTION: RANSAC + DBSCAN (ROBUST)")
-    print(f"{'='*70}")
-    print(f"Total vertical points: {len(vertical_points):,}")
+    # print(f"\n{'='*70}")
+    # print(f"WALL DETECTION: RANSAC + DBSCAN (ROBUST)")
+    # print(f"{'='*70}")
+    # print(f"Total vertical points: {len(vertical_points):,}")
 
     room_height = ceiling_height - floor_height
-    print(f"Room height: {room_height:.2f}m")
-    print(f"Min wall length: {min_wall_length}m")
-    print(f"Min height ratio: {min_height_ratio*100:.0f}%")
+    # print(f"Room height: {room_height:.2f}m")
+    # print(f"Min wall length: {min_wall_length}m")
+    # print(f"Min height ratio: {min_height_ratio*100:.0f}%")
 
     walls = []
     remaining_points = vertical_points.copy()
 
     for iteration in range(max_iterations):
         if len(remaining_points) < min_cluster_points:
-            print(f"\n✓ Stopping: Only {len(remaining_points)} points remaining")
+            # print(f"\n✓ Stopping: Only {len(remaining_points)} points remaining")
             break
 
-        print(f"\n{'-'*70}")
-        print(f"Iteration {iteration + 1}/{max_iterations}")
-        print(f"Remaining: {len(remaining_points):,} points")
+        # print(f"\n{'-'*70}")
+        # print(f"Iteration {iteration + 1}/{max_iterations}")
+        # print(f"Remaining: {len(remaining_points):,} points")
 
         # STEP 1: RANSAC
         pcd = o3d.geometry.PointCloud()
         pcd.points = o3d.utility.Vector3dVector(remaining_points)
 
         plane_model, inliers_idx = pcd.segment_plane(
-            distance_threshold=distance_threshold, ransac_n=3, num_iterations=1000
+            distance_threshold=distance_threshold, ransac_n=3, num_iterations=5000
         )
 
         if len(inliers_idx) < min_cluster_points:
-            print(f"  ⚠️  Plane too small: {len(inliers_idx)} points")
+            # print(f"  ⚠️  Plane too small: {len(inliers_idx)} points")
             break
 
         [a, b, c, d] = plane_model
-        print(f"  Plane: {len(inliers_idx)} inliers, n=[{a:.3f}, {b:.3f}, {c:.3f}]")
+        # print(f"  Plane: {len(inliers_idx)} inliers, n=[{a:.3f}, {b:.3f}, {c:.3f}]")
 
         # Check verticality
         if abs(c) > 0.3:
-            print(f"  ⚠️  Not vertical (|nz|={abs(c):.2f})")
+            # print(f"  ⚠️  Not vertical (|nz|={abs(c):.2f})")
             remaining_points = np.delete(remaining_points, inliers_idx, axis=0)
             continue
 
@@ -482,7 +482,7 @@ def detect_walls_ransac_clustering(
         unique_labels = unique_labels[unique_labels >= 0]
 
         if len(unique_labels) == 0:
-            print(f"  ⚠️  No valid clusters")
+            # print(f"  ⚠️  No valid clusters")
             remaining_points = np.delete(remaining_points, inliers_idx, axis=0)
             continue
 
@@ -491,7 +491,7 @@ def detect_walls_ransac_clustering(
         largest_idx = unique_labels[np.argmax(cluster_sizes)]
         largest_size = max(cluster_sizes)
 
-        print(f"  Clusters: {len(unique_labels)}, largest: {largest_size:,} pts")
+        # print(f"  Clusters: {len(unique_labels)}, largest: {largest_size:,} pts")
 
         # Extract largest cluster
         wall_mask = labels == largest_idx
@@ -501,7 +501,7 @@ def detect_walls_ransac_clustering(
         geometry = compute_wall_geometry_robust(wall_points, room_height)
 
         if geometry is None:
-            print(f"  ⚠️  Geometry computation failed")
+            # print(f"  ⚠️  Geometry computation failed")
             remaining_points = np.delete(remaining_points, inliers_idx, axis=0)
             continue
 
@@ -520,13 +520,13 @@ def detect_walls_ransac_clustering(
             and largest_size >= min_cluster_points
         )
 
-        print(
-            f"  Geo: L={wall_length:.2f}m, H={wall_height:.2f}m ({height_ratio*100:.0f}%), "
-            f"T={wall_thickness:.2f}m"
-        )
+        # print(
+        #     f"  Geo: L={wall_length:.2f}m, H={wall_height:.2f}m ({height_ratio*100:.0f}%), "
+        #     f"T={wall_thickness:.2f}m"
+        # )
 
         if not is_valid:
-            print(f"  ❌ Rejected")
+            # print(f"  ❌ Rejected")
             remaining_points = np.delete(remaining_points, inliers_idx, axis=0)
             continue
 
@@ -550,16 +550,16 @@ def detect_walls_ransac_clustering(
 
         walls.append(wall_info)
 
-        print(
-            f"  ✅ Wall {len(walls)}: {largest_size:,} pts, "
-            f"{wall_length:.2f}m × {wall_height:.2f}m"
-        )
+        # print(
+        #     f"  ✅ Wall {len(walls)}: {largest_size:,} pts, "
+        #     f"{wall_length:.2f}m × {wall_height:.2f}m"
+        # )
 
         remaining_points = np.delete(remaining_points, inliers_idx, axis=0)
 
-    print(f"\n{'='*70}")
-    print(f"COMPLETE: {len(walls)} walls detected")
-    print(f"{'='*70}")
+    # print(f"\n{'='*70}")
+    # print(f"COMPLETE: {len(walls)} walls detected")
+    # print(f"{'='*70}")
 
     return walls
 

@@ -283,11 +283,11 @@ def extract_room_boundary_from_walls(
         Room boundary
     """
 
-    print(f"\n{'='*70}")
-    print(f"BOUNDARY EXTRACTION FROM WALL POINTS")
-    print(f"{'='*70}")
-    print(f"Wall points: {len(wall_points_2d):,}")
-    print(f"Method: {method}")
+    # print(f"\n{'='*70}")
+    # print(f"BOUNDARY EXTRACTION FROM WALL POINTS")
+    # print(f"{'='*70}")
+    # print(f"Wall points: {len(wall_points_2d):,}")
+    # print(f"Method: {method}")
 
     # Create multipoint
     multi_point = MultiPoint(wall_points_2d)
@@ -296,7 +296,7 @@ def extract_room_boundary_from_walls(
         # Use shapely's concave hull (perfect for this!)
         boundary = shapely.concave_hull(multi_point, ratio=concave_ratio)
 
-        print(f"Concave hull ratio: {concave_ratio}")
+        # print(f"Concave hull ratio: {concave_ratio}")
 
     elif method == "alpha_shape":
         # Alpha shapes (alternative)
@@ -324,7 +324,7 @@ def extract_room_boundary_from_walls(
 
     # Validate
     if not isinstance(boundary, Polygon):
-        print(f"⚠️  Result is not a polygon, converting...")
+        # print(f"⚠️  Result is not a polygon, converting...")
         boundary = boundary.convex_hull
 
     # Get stats
@@ -332,9 +332,9 @@ def extract_room_boundary_from_walls(
     perimeter = boundary.length
     num_vertices = len(boundary.exterior.coords) - 1
 
-    print(f"\n✓ Boundary extracted:")
-    print(f"  Vertices: {num_vertices}")
-    print(f"  Perimeter: {perimeter:.2f}m")
-    print(f"  Area: {area:.2f}m²")
+    # print(f"\n✓ Boundary extracted:")
+    # print(f"  Vertices: {num_vertices}")
+    # print(f"  Perimeter: {perimeter:.2f}m")
+    # print(f"  Area: {area:.2f}m²")
 
     return boundary

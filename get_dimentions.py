@@ -229,28 +229,28 @@ def offset_boundary_inward(boundary_polygon, offset_distance):
         Offset boundary
     """
 
-    print(f"\n{'='*70}")
-    print(f"BOUNDARY OFFSET (EXPLICIT → IMPLICIT)")
-    print(f"{'='*70}")
-    print(f"Offset distance: {offset_distance:.3f}m ({offset_distance*100:.1f}cm)")
+    # print(f"\n{'='*70}")
+    # print(f"BOUNDARY OFFSET (EXPLICIT → IMPLICIT)")
+    # print(f"{'='*70}")
+    # print(f"Offset distance: {offset_distance:.3f}m ({offset_distance*100:.1f}cm)")
 
     # Negative buffer = shrink inward
     offset_polygon = boundary_polygon.buffer(-offset_distance)
 
     # Check result
     if offset_polygon.is_empty:
-        print("⚠️  Offset too large! Polygon collapsed.")
-        print("   Using half offset...")
+        # print("⚠️  Offset too large! Polygon collapsed.")
+        # print("   Using half offset...")
         offset_polygon = boundary_polygon.buffer(-offset_distance / 2)
 
     original_area = boundary_polygon.area
     offset_area = offset_polygon.area
     area_reduction = original_area - offset_area
 
-    print(f"\nOriginal area: {original_area:.2f}m²")
-    print(f"Offset area:   {offset_area:.2f}m²")
-    print(
-        f"Reduction:     {area_reduction:.2f}m² ({area_reduction/original_area*100:.1f}%)"
-    )
+    # print(f"\nOriginal area: {original_area:.2f}m²")
+    # print(f"Offset area:   {offset_area:.2f}m²")
+    # print(
+    #     f"Reduction:     {area_reduction:.2f}m² ({area_reduction/original_area*100:.1f}%)"
+    # )
 
     return offset_polygon
