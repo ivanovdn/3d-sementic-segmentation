@@ -196,13 +196,13 @@ def compute_median_wall_thickness(walls):
     median = np.median(thicknesses)
     mean = np.mean(thicknesses)
 
-    print(f"\n{'='*70}")
-    print(f"WALL THICKNESS ANALYSIS")
-    print(f"{'='*70}")
-    print(f"Walls analyzed: {len(thicknesses)}")
-    print(f"Median thickness: {median:.3f}m ({median*100:.1f}cm)")
-    print(f"Mean thickness: {mean:.3f}m ({mean*100:.1f}cm)")
-    print(f"Range: {min(thicknesses):.3f}m - {max(thicknesses):.3f}m")
+    # print(f"\n{'='*70}")
+    # print(f"WALL THICKNESS ANALYSIS")
+    # print(f"{'='*70}")
+    # print(f"Walls analyzed: {len(thicknesses)}")
+    # print(f"Median thickness: {median:.3f}m ({median*100:.1f}cm)")
+    # print(f"Mean thickness: {mean:.3f}m ({mean*100:.1f}cm)")
+    # print(f"Range: {min(thicknesses):.3f}m - {max(thicknesses):.3f}m")
 
     return median
 
