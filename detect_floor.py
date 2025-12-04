@@ -278,11 +278,30 @@ def detect_floor_histogram_ransac(
     # Actual floor height (from plane equation: z = -d/c for horizontal plane)
     floor_height = -d / c if abs(c) > 0.01 else floor_height_estimate
 
+    distances = np.abs(
+        a * points[:, 0] + b * points[:, 1] + c * points[:, 2] + d
+    ) / np.sqrt(a**2 + b**2 + c**2)
+
+    # Expand to all points within thickness
+    final_thickness = 0.10  # 10cm tolerance
+    expanded_mask = distances <= final_thickness
+    expanded_indices = np.where(expanded_mask)[0]
+
+    print(f"    RANSAC inliers in slice: {len(floor_indices):,}")
+    print(
+        f"    Expanded to all points (±{final_thickness}m): {len(expanded_indices):,}"
+    )
+    print(
+        f"    Additional floor points found: {len(expanded_indices) - len(floor_indices):,}"
+    )
+
+    # Return expanded indices instead
+    return expanded_indices, floor_height
     # print(f"\n  ✓ Floor detection complete:")
     # print(f"    Floor height: {floor_height:.3f}m")
     # print(f"    Floor points: {len(floor_indices):,}")
 
-    return floor_indices, floor_height
+    # return floor_indices, floor_height
 
 
 def detect_floor_histogram(
