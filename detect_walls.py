@@ -3,6 +3,7 @@ import numpy as np
 import open3d as o3d
 from scipy.signal import find_peaks
 from sklearn.cluster import DBSCAN
+from tqdm import tqdm
 
 
 def extract_wall_points(
@@ -416,7 +417,7 @@ def detect_walls_ransac_clustering(
     cluster_eps=0.10,
     min_cluster_points=100,
     min_wall_height=1.5,
-    min_wall_length=0.80,  # Increased from 0.1!
+    min_wall_length=0.80,
     max_wall_thickness=0.25,
     min_height_ratio=0.50,
     max_iterations=30,
@@ -436,7 +437,9 @@ def detect_walls_ransac_clustering(
     # print(f"Min height ratio: {min_height_ratio*100:.0f}%")
 
     walls = []
+    # remaining_points = vertical_points.copy()
     remaining_points = vertical_points.copy()
+    remaining_idx = np.arange(len(vertical_points))
 
     for iteration in range(max_iterations):
         if len(remaining_points) < min_cluster_points:
@@ -454,6 +457,8 @@ def detect_walls_ransac_clustering(
         plane_model, inliers_idx = pcd.segment_plane(
             distance_threshold=distance_threshold, ransac_n=3, num_iterations=5000
         )
+        inlier_global_idx = remaining_idx[inliers_idx]
+        inlier_global_idx = np.array(inlier_global_idx, dtype=int)
 
         if len(inliers_idx) < min_cluster_points:
             # print(f"  ⚠️  Plane too small: {len(inliers_idx)} points")
@@ -466,6 +471,7 @@ def detect_walls_ransac_clustering(
         if abs(c) > 0.3:
             # print(f"  ⚠️  Not vertical (|nz|={abs(c):.2f})")
             remaining_points = np.delete(remaining_points, inliers_idx, axis=0)
+            remaining_idx = np.delete(remaining_idx, inliers_idx, axis=0)
             continue
 
         inlier_points = remaining_points[inliers_idx]
@@ -484,6 +490,7 @@ def detect_walls_ransac_clustering(
         if len(unique_labels) == 0:
             # print(f"  ⚠️  No valid clusters")
             remaining_points = np.delete(remaining_points, inliers_idx, axis=0)
+            remaining_idx = np.delete(remaining_idx, inliers_idx, axis=0)
             continue
 
         # Find largest cluster
@@ -496,6 +503,7 @@ def detect_walls_ransac_clustering(
         # Extract largest cluster
         wall_mask = labels == largest_idx
         wall_points = inlier_points[wall_mask]
+        wall_indices = inlier_global_idx[wall_mask]
 
         # STEP 3: Compute geometry (ROBUST)
         geometry = compute_wall_geometry_robust(wall_points, room_height)
@@ -503,6 +511,7 @@ def detect_walls_ransac_clustering(
         if geometry is None:
             # print(f"  ⚠️  Geometry computation failed")
             remaining_points = np.delete(remaining_points, inliers_idx, axis=0)
+            remaining_idx = np.delete(remaining_idx, inliers_idx, axis=0)
             continue
 
         wall_length = geometry["length"]
@@ -528,6 +537,7 @@ def detect_walls_ransac_clustering(
         if not is_valid:
             # print(f"  ❌ Rejected")
             remaining_points = np.delete(remaining_points, inliers_idx, axis=0)
+            remaining_idx = np.delete(remaining_idx, inliers_idx, axis=0)
             continue
 
         # STEP 5: Store
@@ -539,6 +549,7 @@ def detect_walls_ransac_clustering(
             "plane_model": plane_model,
             "normal": normal,
             "center": center,
+            "wall_indices": wall_indices,
             "points": wall_points,
             "num_points": largest_size,
             "length": wall_length,
@@ -556,12 +567,99 @@ def detect_walls_ransac_clustering(
         # )
 
         remaining_points = np.delete(remaining_points, inliers_idx, axis=0)
+        remaining_idx = np.delete(remaining_idx, inliers_idx, axis=0)
 
     # print(f"\n{'='*70}")
     # print(f"COMPLETE: {len(walls)} walls detected")
     # print(f"{'='*70}")
 
     return walls
+
+
+def ensemble_ransac_wall_detection(
+    vertical_points, floor_height, ceiling_height, n_runs=5, config=None
+):
+    """
+    Run RANSAC multiple times, keep points that appear in majority of runs
+
+    Strategy: Consensus voting
+    - Run RANSAC n_runs times
+    - Each point gets a "vote" each time it's classified as wall
+    - Keep points with votes >= threshold (e.g., 3 out of 5)
+    """
+
+    # print(f"\n{'='*70}")
+    # print(f"ENSEMBLE RANSAC WALL DETECTION ({n_runs} runs)")
+    # print(f"{'='*70}")
+
+    # Track votes for each point
+    point_votes = np.zeros(len(vertical_points), dtype=int)
+
+    all_walls_list = []
+    all_wall_indices_list = []
+
+    # Run RANSAC multiple times
+    for run_idx in tqdm(range(n_runs)):
+        # print(f"\nRun {run_idx + 1}/{n_runs}...")
+
+        # Detect walls (RANSAC is stochastic, gives different results)
+        walls = detect_walls_ransac_clustering(
+            vertical_points,
+            floor_height=floor_height,
+            ceiling_height=ceiling_height,
+            **config,
+        )
+
+        # Get indices of all points classified as walls
+        wall_indices = set()
+        for wall in walls:
+            # Assuming you have indices stored in wall dict
+            if "wall_indices" in wall:
+                wall_indices.update(wall["wall_indices"])
+            else:
+                # Find indices by matching points
+                for pt in wall["points"]:
+                    idx = np.where((vertical_points == pt).all(axis=1))[0]
+                    if len(idx) > 0:
+                        wall_indices.add(idx[0])
+
+        # Vote for these points
+        wall_indices = np.array(list(wall_indices))
+        point_votes[wall_indices] += 1
+
+        all_walls_list.append(walls)
+        all_wall_indices_list.append(wall_indices)
+
+        # print(f"  Found {len(walls)} walls, {len(wall_indices):,} wall points")
+
+    # Determine consensus threshold
+    consensus_threshold = (n_runs + 1) // 2  # Majority vote (e.g., 3 out of 5)
+
+    # print(f"\n{'='*70}")
+    # print(f"CONSENSUS RESULTS")
+    # print(f"{'='*70}")
+    # print(f"Consensus threshold: {consensus_threshold}/{n_runs} votes")
+
+    # Get consensus wall points
+    consensus_mask = point_votes >= consensus_threshold
+    consensus_wall_points = vertical_points[consensus_mask]
+
+    print(f"\nVoting distribution:")
+    for votes in range(n_runs + 1):
+        count = np.sum(point_votes == votes)
+        if count > 0:
+            print(
+                f"  {votes} votes: {count:,} points ({100*count/len(vertical_points):.1f}%)"
+            )
+
+    # print(f"\nConsensus wall points: {len(consensus_wall_points):,}")
+
+    return {
+        "consensus_points": consensus_wall_points,
+        "consensus_indices": np.where(consensus_mask)[0],
+        "point_votes": point_votes,
+        "all_runs": all_walls_list,
+    }
 
 
 def get_room_wall_points(walls):
@@ -610,16 +708,16 @@ def project_points_to_2d(points_3d):
     # Simply take X and Y columns (ignore Z)
     points_2d = points_3d[:, :2]
 
-    print(f"Projected {len(points_3d)} points to 2D")
-    print(f"2D bounds:")
-    print(
-        f"  X: [{points_2d[:, 0].min():.3f}, {points_2d[:, 0].max():.3f}] "
-        f"(range: {points_2d[:, 0].max() - points_2d[:, 0].min():.3f}m)"
-    )
-    print(
-        f"  Y: [{points_2d[:, 1].min():.3f}, {points_2d[:, 1].max():.3f}] "
-        f"(range: {points_2d[:, 1].max() - points_2d[:, 1].min():.3f}m)"
-    )
+    # print(f"Projected {len(points_3d)} points to 2D")
+    # print(f"2D bounds:")
+    # print(
+    #     f"  X: [{points_2d[:, 0].min():.3f}, {points_2d[:, 0].max():.3f}] "
+    #     f"(range: {points_2d[:, 0].max() - points_2d[:, 0].min():.3f}m)"
+    # )
+    # print(
+    #     f"  Y: [{points_2d[:, 1].min():.3f}, {points_2d[:, 1].max():.3f}] "
+    #     f"(range: {points_2d[:, 1].max() - points_2d[:, 1].min():.3f}m)"
+    # )
 
     return points_2d
 
