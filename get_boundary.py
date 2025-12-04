@@ -1,3 +1,4 @@
+import alphashape
 import matplotlib.pyplot as plt
 import numpy as np
 import shapely
@@ -257,7 +258,7 @@ def extract_dimensions_from_concave_hull(wall_points_2d, alpha=0.5):
 
 
 def extract_room_boundary_from_walls(
-    wall_points_2d, method="concave_hull", concave_ratio=0.3, alpha=1.0
+    wall_points_2d, method="concave_hull", concave_ratio=0.3
 ):
     """
     Extract room boundary polygon from all wall points
@@ -274,8 +275,7 @@ def extract_room_boundary_from_walls(
         Boundary extraction method
     concave_ratio : float
         For concave_hull method (0-1, lower = tighter fit)
-    alpha : float
-        For alpha_shape method
+
 
     Returns:
     --------
@@ -301,6 +301,9 @@ def extract_room_boundary_from_walls(
     elif method == "alpha_shape":
         # Alpha shapes (alternative)
         # Compute Delaunay triangulation
+        boundary = alphashape.alphashape(wall_points_2d, concave_ratio)
+
+    elif method == "delaunay":
         tri = Delaunay(wall_points_2d)
 
         # Filter triangles by edge length (alpha parameter)
@@ -315,10 +318,6 @@ def extract_room_boundary_from_walls(
                     edge = tuple(sorted([simplex[i], simplex[(i + 1) % 3]]))
                     edges.add(edge)
 
-        # Build polygon from edges (simplified)
-        # This is complex, using concave_hull is easier
-        boundary = shapely.concave_hull(multi_point, ratio=concave_ratio)
-
     else:
         raise ValueError(f"Unknown method: {method}")
 
@@ -327,10 +326,10 @@ def extract_room_boundary_from_walls(
         # print(f"⚠️  Result is not a polygon, converting...")
         boundary = boundary.convex_hull
 
-    # Get stats
-    area = boundary.area
-    perimeter = boundary.length
-    num_vertices = len(boundary.exterior.coords) - 1
+    # # Get stats
+    # area = boundary.area
+    # perimeter = boundary.length
+    # num_vertices = len(boundary.exterior.coords) - 1
 
     # print(f"\n✓ Boundary extracted:")
     # print(f"  Vertices: {num_vertices}")
