@@ -5,7 +5,7 @@ import open3d as o3d
 
 
 class PointCloudDataset:
-    def __init__(self, file_path):
+    def __init__(self, file_path, voxel_size):
         self.class_map = {
             "ceiling": 0,
             "floor": 1,
@@ -23,6 +23,8 @@ class PointCloudDataset:
         }
 
         self.file_path = file_path
+        self.voxel_size = voxel_size
+        self.pcd = self._read_pcd()
 
     def load_s3dis_room_full(self, area, room):
         """Load S3DIS room with ground truth labels"""
@@ -333,27 +335,49 @@ class PointCloudDataset:
 
         return points, labels
 
-    def read_pcd_and_extract_points(self, subsample_ratio=None):
+    def _read_pcd(self):
         """
         Read pcd file and extract point cloud with colors
 
         Returns:
-            points: numpy array of shape (N, 6) containing [x, y, z, r, g, b]
+            pcd: o3d.geometry.PointCloud()
         """
 
         pcd = o3d.io.read_point_cloud(self.file_path)
-        if subsample_ratio:
-            pcd = pcd.voxel_down_sample(subsample_ratio)
-        R_yup_to_zup = np.array([[1, 0, 0], [0, 0, 1], [0, 1, 0]])
+
+        pcd = pcd.voxel_down_sample(self.voxel_size)
+
         points_xyz = np.asarray(pcd.points)
         colors = np.asarray(pcd.colors)
 
+        # Swap axis
+        R_yup_to_zup = np.array([[1, 0, 0], [0, 0, 1], [0, 1, 0]])
         points_xyz = points_xyz @ R_yup_to_zup.T
+        colors = colors @ R_yup_to_zup.T
 
         pcd = o3d.geometry.PointCloud()
         pcd.points = o3d.utility.Vector3dVector(points_xyz)
         pcd.colors = o3d.utility.Vector3dVector(colors)
 
         # Combine xyz and rgb
-        points = np.concatenate([points_xyz, colors], axis=1)
-        return points, pcd
+        # points = np.concatenate([points_xyz, colors], axis=1)
+        return pcd
+
+    def clean_pcd(self, method, nb, r):
+        if method == "radius":
+            self.cleaned_pcd, ind = self.pcd.remove_radius_outlier(
+                nb_points=nb, radius=r
+            )
+        else:
+            self.cleaned_pcd, ind = self.pcd.remove_statistical_outlier(
+                nb_neighbors=nb, std_ratio=r
+            )
+        out_pcd = self.pcd.select_by_index(ind, invert=True)
+        out_pcd.paint_uniform_color([1, 0, 0])
+        self.out_pcd = out_pcd
+
+    def visualize_pcd(self, type="raw"):
+        if type == "raw":
+            o3d.visualization.draw_geometries([self.pcd])
+        else:
+            o3d.visualization.draw_geometries([self.cleaned_pcd, self.out_pcd])
