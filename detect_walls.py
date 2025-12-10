@@ -56,7 +56,7 @@ def compute_normals(points, radius=0.1, max_nn=30):
         search_param=o3d.geometry.KDTreeSearchParamHybrid(radius=radius, max_nn=max_nn)
     )
 
-    # Orient normals consistently (optional but helpful)
+    # Orient normals consistently
     pcd.orient_normals_consistent_tangent_plane(k=15)
 
     normals = np.asarray(pcd.normals)
