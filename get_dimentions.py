@@ -81,7 +81,7 @@ def visualize_polygon_dimensions(boundary_polygon, dimensions):
     """
 
     polygon_points = np.array(boundary_polygon.exterior.coords)[:-1]
-    fig, ax = plt.subplots(figsize=(14, 12))
+    fig, ax = plt.subplots(figsize=(10, 8))
 
     # Close polygon for plotting
     poly_closed = np.vstack([polygon_points, polygon_points[0]])
