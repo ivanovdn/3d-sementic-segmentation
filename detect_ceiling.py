@@ -366,3 +366,65 @@ def refine_all_ceiling_levels(ceiling_levels, distance_threshold=0.02):
     )
 
     return refined_levels
+
+
+def detect_ceiling_correct(
+    points, top_percentile=95, thickness=0.10  # Look at top 5% of heights
+):
+    """
+    Detect ceiling by looking at HIGHEST points, not most dense cluster
+    """
+
+    z_coords = points[:, 2]
+
+    print(f"\n{'='*70}")
+    print(f"CEILING DETECTION (HEIGHT-BASED)")
+    print(f"{'='*70}")
+    print(f"Z range: [{z_coords.min():.3f}m, {z_coords.max():.3f}m]")
+
+    # Step 1: Get top percentile
+    z_threshold = np.percentile(z_coords, top_percentile)
+
+    print(f"\nTop {100-top_percentile}% height threshold: {z_threshold:.3f}m")
+
+    # Step 2: Extract top points
+    top_mask = z_coords >= z_threshold
+    top_points = points[top_mask]
+
+    print(f"Points above threshold: {len(top_points):,}")
+
+    if len(top_points) < 100:
+        print(f"❌ Too few top points!")
+        return np.array([], dtype=int)
+
+    # Step 3: Find densest cluster in top points using histogram
+    top_z = top_points[:, 2]
+    hist, bin_edges = np.histogram(top_z, bins=50)
+    bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
+
+    # Find peak in top region
+    from scipy.signal import find_peaks
+
+    peaks, _ = find_peaks(hist, prominence=len(top_points) * 0.05)
+
+    if len(peaks) == 0:
+        # No clear peak, use highest point
+        ceiling_height = top_z.max()
+        print(f"No clear peak, using max height: {ceiling_height:.3f}m")
+    else:
+        # Get HIGHEST peak (ceiling is at top!)
+        peak_heights = bin_centers[peaks]
+        ceiling_height = peak_heights.max()
+        print(f"Found {len(peaks)} peaks in top region")
+        print(f"Highest peak at: {ceiling_height:.3f}m")
+
+    # Step 4: Extract ceiling points (within thickness)
+    ceiling_mask = np.abs(z_coords - ceiling_height) <= thickness
+    ceiling_indices = np.where(ceiling_mask)[0]
+
+    print(f"\nCeiling height: {ceiling_height:.3f}m")
+    print(
+        f"Ceiling points: {len(ceiling_indices):,} ({100*len(ceiling_indices)/len(points):.1f}%)"
+    )
+
+    return ceiling_indices
