@@ -662,6 +662,129 @@ def ensemble_ransac_wall_detection(
     }
 
 
+def ensemble_ransac_wall_detection_v2(
+    vertical_points, floor_height, ceiling_height, n_runs=5, config=None
+):
+    """
+    Run RANSAC multiple times for consensus, then detect walls from consensus points
+
+    Strategy:
+    1. Run RANSAC n_runs times
+    2. Vote on which points are walls (consensus)
+    3. Run RANSAC ONCE MORE on consensus points only
+    4. Return wall structure (like detect_walls_ransac_clustering)
+    """
+
+    print(f"\n{'='*70}")
+    print(f"ENSEMBLE RANSAC WALL DETECTION ({n_runs} runs)")
+    print(f"{'='*70}")
+
+    # ========================================================================
+    # PHASE 1: Consensus Voting (Your existing code)
+    # ========================================================================
+
+    point_votes = np.zeros(len(vertical_points), dtype=int)
+    all_walls_list = []
+
+    # Run RANSAC multiple times
+    for run_idx in tqdm(range(n_runs), desc="Ensemble voting"):
+        walls = detect_walls_ransac_clustering(
+            vertical_points,
+            floor_height=floor_height,
+            ceiling_height=ceiling_height,
+            **config,
+        )
+
+        # Get wall indices
+        wall_indices = set()
+        for wall in walls:
+            if "wall_indices" in wall:
+                wall_indices.update(wall["wall_indices"])
+
+        # Vote
+        wall_indices = np.array(list(wall_indices))
+        point_votes[wall_indices] += 1
+
+        all_walls_list.append(walls)
+
+    # Consensus threshold
+    consensus_threshold = (n_runs + 1) // 2  # Majority
+
+    print(f"\nConsensus threshold: {consensus_threshold}/{n_runs} votes")
+
+    # Get consensus points
+    consensus_mask = point_votes >= consensus_threshold
+    consensus_wall_points = vertical_points[consensus_mask]
+    consensus_indices = np.where(consensus_mask)[0]
+
+    print(f"\nVoting distribution:")
+    for votes in range(n_runs + 1):
+        count = np.sum(point_votes == votes)
+        if count > 0:
+            print(
+                f"  {votes} votes: {count:,} points ({100*count/len(vertical_points):.1f}%)"
+            )
+
+    print(
+        f"\n✓ Consensus wall points: {len(consensus_wall_points):,} / {len(vertical_points):,}"
+    )
+
+    # ========================================================================
+    # PHASE 2: Final Wall Detection from Consensus Points (NEW!)
+    # ========================================================================
+
+    print(f"\n{'='*70}")
+    print(f"FINAL WALL DETECTION (from consensus points)")
+    print(f"{'='*70}")
+
+    # Run RANSAC ONE MORE TIME on consensus points only
+    final_walls = detect_walls_ransac_clustering(
+        consensus_wall_points,  # ← Use consensus points!
+        floor_height=floor_height,
+        ceiling_height=ceiling_height,
+        **config,
+    )
+
+    print(f"\n✓ Final walls detected: {len(final_walls)}")
+
+    # ========================================================================
+    # PHASE 3: Map back to original indices (IMPORTANT!)
+    # ========================================================================
+
+    # The wall_indices in final_walls are relative to consensus_wall_points
+    # We need to map them back to original vertical_points indices
+
+    for wall in final_walls:
+        if "wall_indices" in wall:
+            # These indices are into consensus_wall_points
+            consensus_relative_indices = wall["wall_indices"]
+
+            # Map back to original vertical_points indices
+            original_indices = consensus_indices[consensus_relative_indices]
+
+            # Update wall with original indices
+            wall["wall_indices"] = original_indices
+
+            # Also update points (get from original array)
+            wall["points"] = vertical_points[original_indices]
+
+    # ========================================================================
+    # Return (same format as detect_walls_ransac_clustering)
+    # ========================================================================
+
+    print(f"\n{'='*70}")
+    print(f"ENSEMBLE COMPLETE")
+    print(f"{'='*70}")
+    print(f"Total walls: {len(final_walls)}")
+    for i, wall in enumerate(final_walls):
+        print(
+            f"  Wall {i+1}: {wall['num_points']:,} points, "
+            f"{wall['length']:.2f}m × {wall['height']:.2f}m"
+        )
+
+    return final_walls
+
+
 def get_room_wall_points(walls):
     """
     Extract all wall points for a specific room
