@@ -24,7 +24,7 @@ class PointCloudDataset:
 
         self.file_path = file_path
         self.voxel_size = voxel_size
-        self.pcd = self._read_pcd()
+        self.pcd = self.read_pcd()
 
     def load_s3dis_room_full(self, area, room):
         """Load S3DIS room with ground truth labels"""
@@ -335,7 +335,7 @@ class PointCloudDataset:
 
         return points, labels
 
-    def _read_pcd(self):
+    def read_pcd(self):
         """
         Read pcd file and extract point cloud with colors
 
@@ -353,7 +353,6 @@ class PointCloudDataset:
         # Swap axis
         R_yup_to_zup = np.array([[1, 0, 0], [0, 0, 1], [0, 1, 0]])
         points_xyz = points_xyz @ R_yup_to_zup.T
-        colors = colors @ R_yup_to_zup.T
 
         pcd = o3d.geometry.PointCloud()
         pcd.points = o3d.utility.Vector3dVector(points_xyz)
