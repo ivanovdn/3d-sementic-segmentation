@@ -11,3 +11,6 @@
 /models
 /wandb
 config.yaml
+/notebooks/wandb
+/notebooks/__pycache__
+/notebooks
