@@ -12,8 +12,8 @@ from tqdm import tqdm
 
 from detect_floor import *
 from detect_walls import *
-from get_boundary import *
-from get_dimentions import *
+from get_boundary_concave import *
+from get_dimentions_concave import *
 
 
 def finetune_params_with_ransac(
