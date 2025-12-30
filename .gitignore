@@ -8,6 +8,7 @@
 /__pycache__
 /pcd_processing/__pycache__
 /planes_detection/__pycache__
+/dimensions/__pycache__
 *.pth
 /results
 /models
