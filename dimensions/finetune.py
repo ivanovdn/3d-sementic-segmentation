@@ -10,10 +10,10 @@ from shapely import MultiPoint, MultiPolygon, Polygon
 from simplification.cutil import simplify_coords_vw
 from tqdm import tqdm
 
-from detect_floor import *
-from detect_walls import *
-from get_boundary_concave import *
-from get_dimentions_concave import *
+from planes_detection.detect_floor import *
+from planes_detection.detect_walls import *
+from dimensions.get_boundary_concave import *
+from dimensions.get_dimentions_concave import *
 
 
 def finetune_params_with_ransac(
