@@ -2,7 +2,7 @@ import yaml
 from tqdm import tqdm
 
 import wandb
-from pcd_dataset import PointCloudDataset
+from pcd_processing import PointCloudDataset
 from plane_detector import StructuralRANSAC
 from pointnet_utils import PointnetInference
 from s3dis_metrics import SegmentationMetrics
