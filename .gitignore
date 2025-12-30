@@ -6,6 +6,8 @@
 .DS_Store
 /.ipynb_checkpoints
 /__pycache__
+/pcd_processing/__pycache__
+/planes_detection/__pycache__
 *.pth
 /results
 /models
