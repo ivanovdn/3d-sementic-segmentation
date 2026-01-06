@@ -150,7 +150,10 @@ def find_gaps(grid: np.ndarray,
               density_threshold: float = 0.1,
               min_gap_width: float = 0.5,
               min_gap_height: float = 0.5,
-              morphology_size: int = 3) -> List[Dict]:
+              morphology_size: int = 3,
+              allow_edge_openings: bool = True,
+              edge_opening_min_height: float = 1.8,
+              edge_wall_threshold: float = 0.2) -> List[Dict]:
     """
     Find rectangular gaps in density grid.
     
@@ -166,6 +169,14 @@ def find_gaps(grid: np.ndarray,
         Minimum gap width in meters
     min_gap_height : float
         Minimum gap height in meters
+    allow_edge_openings : bool
+        If True, detect openings that touch left/right edges of wall
+        (e.g., doors at the end of a wall segment)
+    edge_opening_min_height : float
+        Minimum height for edge openings (to distinguish from wall boundary)
+    edge_wall_threshold : float
+        Fraction of wall height that must have points on the opposite side
+        of an edge gap to consider it a real opening
         
     Returns:
     --------
@@ -176,6 +187,8 @@ def find_gaps(grid: np.ndarray,
     cell_size = grid_info['cell_size']
     min_x = grid_info['min_x']
     min_z = grid_info['min_z']
+    n_rows = grid_info['n_rows']
+    n_cols = grid_info['n_cols']
     
     # Normalize grid
     max_density = grid.max()
@@ -227,15 +240,82 @@ def find_gaps(grid: np.ndarray,
         if width < min_gap_width or height < min_gap_height:
             continue
         
-        # Check if gap touches edges (might be boundary, not opening)
+        # Check if gap touches edges
         touches_left = col_min <= 1
-        touches_right = col_max >= grid_info['n_cols'] - 2
+        touches_right = col_max >= n_cols - 2
         touches_bottom = row_min <= 1
-        touches_top = row_max >= grid_info['n_rows'] - 2
+        touches_top = row_max >= n_rows - 2
         
-        # Skip gaps that touch left/right edges (wall boundaries)
+        is_edge_opening = False
+        
+        # Handle edge gaps
         if touches_left or touches_right:
-            continue
+            if not allow_edge_openings:
+                continue
+            
+            # Check if this is a real opening or just wall boundary
+            # A real edge opening should:
+            # 1. Have significant height (door-like)
+            # 2. Have wall continuing on the other side (above or below the gap)
+            
+            if height < edge_opening_min_height:
+                # Too short to be a door, likely just wall boundary
+                continue
+            
+            # Check if there's wall above or below the gap on the same edge
+            # This indicates it's an opening, not just where the wall ends
+            # Use more columns (up to 10% of wall width) for more robust detection
+            n_edge_cols = max(5, min(10, n_cols // 10))
+            
+            if touches_left:
+                edge_cols = has_points_clean[:, :n_edge_cols]
+            else:
+                edge_cols = has_points_clean[:, -n_edge_cols:]
+            
+            # Count wall points above the gap
+            points_above = edge_cols[row_max+1:, :].sum() if row_max < n_rows - 1 else 0
+            # Count wall points below the gap
+            points_below = edge_cols[:row_min, :].sum() if row_min > 0 else 0
+            
+            # Calculate expected points for comparison
+            n_rows_above = n_rows - row_max - 1 if row_max < n_rows - 1 else 0
+            n_rows_below = row_min if row_min > 0 else 0
+            expected_above = n_rows_above * n_edge_cols
+            expected_below = n_rows_below * n_edge_cols
+            
+            # There should be significant wall on at least one side
+            # Use a fraction of expected (accounts for sparse data)
+            has_wall_above = expected_above > 0 and points_above / max(expected_above, 1) > edge_wall_threshold
+            has_wall_below = expected_below > 0 and points_below / max(expected_below, 1) > edge_wall_threshold
+            
+            # Also check: if gap doesn't touch floor AND there's no wall below,
+            # this is likely just a wall that doesn't go all the way down (not an opening)
+            # Similarly for ceiling
+            gap_touches_floor = touches_bottom
+            gap_touches_ceiling = touches_top
+            
+            # A door should touch the floor but not ceiling, and have wall above
+            # A passage should touch both floor and ceiling
+            is_valid_edge_opening = False
+            
+            if gap_touches_floor and not gap_touches_ceiling and has_wall_above:
+                # Door pattern: gap from floor up, wall above
+                is_valid_edge_opening = True
+            elif gap_touches_floor and gap_touches_ceiling:
+                # Full height passage
+                is_valid_edge_opening = True
+            elif not gap_touches_floor and has_wall_below and has_wall_above:
+                # Window-like at edge (unusual but possible)
+                is_valid_edge_opening = True
+            elif has_wall_above or has_wall_below:
+                # Fallback: any wall continuation suggests opening
+                is_valid_edge_opening = True
+            
+            if not is_valid_edge_opening:
+                # No wall continuation, this is just the wall boundary
+                continue
+            
+            is_edge_opening = True
         
         gaps.append({
             'x_min': x_min,
@@ -247,6 +327,9 @@ def find_gaps(grid: np.ndarray,
             'area': width * height,
             'touches_bottom': touches_bottom,
             'touches_top': touches_top,
+            'touches_left': touches_left,
+            'touches_right': touches_right,
+            'is_edge_opening': is_edge_opening,
             'grid_bbox': (row_min, row_max, col_min, col_max),
             'component_mask': component
         })
@@ -302,6 +385,11 @@ def classify_openings(gaps: List[Dict],
         width = gap['width']
         height = gap['height']
         
+        # Check if this is an edge opening
+        is_edge = gap.get('is_edge_opening', False)
+        touches_left = gap.get('touches_left', False)
+        touches_right = gap.get('touches_right', False)
+        
         opening = {
             'x_min': gap['x_min'],
             'x_max': gap['x_max'],
@@ -310,7 +398,10 @@ def classify_openings(gaps: List[Dict],
             'width': width,
             'height': height,
             'near_floor': near_floor,
-            'near_ceiling': near_ceiling
+            'near_ceiling': near_ceiling,
+            'is_edge_opening': is_edge,
+            'touches_left': touches_left,
+            'touches_right': touches_right
         }
         
         # Classify
@@ -326,6 +417,12 @@ def classify_openings(gaps: List[Dict],
             else:
                 opening['type'] = 'unknown'
                 opening['confidence'] = 'low'
+            
+            # Edge openings that touch floor are likely doors (passage to another room)
+            if is_edge and min_door_height <= height:
+                opening['type'] = 'door'
+                opening['confidence'] = 'high' if min_door_width <= width <= max_door_width else 'medium'
+                opening['subtype'] = 'edge_door'  # Mark as edge door
         
         elif not near_floor and not near_ceiling:
             # Floating = likely window
@@ -340,6 +437,10 @@ def classify_openings(gaps: List[Dict],
             # Floor to ceiling = could be doorway or full opening
             opening['type'] = 'full_opening'
             opening['confidence'] = 'medium'
+            
+            # Edge openings that go floor to ceiling are likely passages
+            if is_edge:
+                opening['subtype'] = 'passage'
         
         else:
             opening['type'] = 'unknown'
@@ -448,6 +549,10 @@ def detect_all_openings(walls: List[Dict],
                         min_gap_width: float = 0.5,
                         min_gap_height: float = 0.5,
                         morphology_size: int = 3,
+                        # Edge opening params
+                        allow_edge_openings: bool = True,
+                        edge_opening_min_height: float = 1.8,
+                        edge_wall_threshold: float = 0.3,
                         # Classification params
                         floor_tolerance: float = 0.15,
                         min_door_height: float = 1.8,
@@ -478,6 +583,12 @@ def detect_all_openings(walls: List[Dict],
         Minimum opening height in meters
     morphology_size : int
         Kernel size for morphological operations
+    allow_edge_openings : bool
+        If True, detect openings at wall edges (doors between rooms)
+    edge_opening_min_height : float
+        Minimum height for edge openings to be considered real
+    edge_wall_threshold : float
+        Fraction of wall that must exist above/below edge gap
     floor_tolerance : float
         Distance from floor to be considered "touching floor"
     min_door_height, max_door_height : float
@@ -503,6 +614,7 @@ def detect_all_openings(walls: List[Dict],
         print(f"  Floor: {floor_height:.2f}m, Ceiling: {ceiling_height:.2f}m")
         print(f"  Grid cell size: {cell_size}m")
         print(f"  Min gap size: {min_gap_width}m × {min_gap_height}m")
+        print(f"  Edge openings: {'enabled' if allow_edge_openings else 'disabled'}")
     
     all_openings = []
     
@@ -521,13 +633,16 @@ def detect_all_openings(walls: List[Dict],
             max_z=ceiling_height
         )
         
-        # Find gaps
+        # Find gaps (including edge openings if enabled)
         gaps = find_gaps(
             grid, grid_info,
             density_threshold=density_threshold,
             min_gap_width=min_gap_width,
             min_gap_height=min_gap_height,
-            morphology_size=morphology_size
+            morphology_size=morphology_size,
+            allow_edge_openings=allow_edge_openings,
+            edge_opening_min_height=edge_opening_min_height,
+            edge_wall_threshold=edge_wall_threshold
         )
         
         # Classify openings
@@ -552,7 +667,9 @@ def detect_all_openings(walls: List[Dict],
             all_openings.append(op)
             
             if verbose:
-                print(f"    → {op['type']} ({op['confidence']}): "
+                edge_str = " [EDGE]" if op.get('is_edge_opening', False) else ""
+                subtype_str = f" ({op['subtype']})" if 'subtype' in op else ""
+                print(f"    → {op['type']}{subtype_str} ({op['confidence']}){edge_str}: "
                       f"{op['width']:.2f}m × {op['height']:.2f}m")
     
     if verbose:
@@ -560,7 +677,8 @@ def detect_all_openings(walls: List[Dict],
         print(f"TOTAL OPENINGS: {len(all_openings)}")
         doors = [o for o in all_openings if o['type'] == 'door']
         windows = [o for o in all_openings if o['type'] == 'window']
-        print(f"  Doors: {len(doors)}")
+        edge_doors = [o for o in all_openings if o.get('is_edge_opening', False)]
+        print(f"  Doors: {len(doors)} (edge: {len(edge_doors)})")
         print(f"  Windows: {len(windows)}")
         print(f"{'='*70}")
     
@@ -660,7 +778,13 @@ if __name__ == "__main__":
     print("Opening Detection Module")
     print("=" * 50)
     
-    # Create synthetic wall with door and window
+    # =========================================================================
+    # Test 1: Standard wall with door and window
+    # =========================================================================
+    print("\n" + "="*50)
+    print("TEST 1: Standard wall with door and window")
+    print("="*50)
+    
     np.random.seed(42)
     
     wall_width = 4.0
@@ -709,3 +833,75 @@ if __name__ == "__main__":
         print(f"    Width: {op['width']:.2f}m")
         print(f"    Height: {op['height']:.2f}m")
         print(f"    Position: x=[{op['x_min']:.2f}, {op['x_max']:.2f}], z=[{op['z_min']:.2f}, {op['z_max']:.2f}]")
+
+    # =========================================================================
+    # Test 2: Wall with edge opening (like your case)
+    # =========================================================================
+    print("\n" + "="*50)
+    print("TEST 2: Wall with EDGE opening (door at wall end)")
+    print("="*50)
+    
+    np.random.seed(42)
+    
+    floor_z = -1.8
+    ceiling_z = 1.2
+    n_points = 5000
+    
+    # Create a single wall segment with an edge opening
+    # Wall spans x from 0 to 4, door at LEFT edge
+    door_height = 2.2
+    door_width = 0.9
+    door_top_z = floor_z + door_height  # Door goes from floor up
+    
+    x = np.random.uniform(0, 4, n_points)
+    y = np.random.normal(0, 0.02, n_points)
+    z = np.random.uniform(floor_z, ceiling_z, n_points)
+    
+    # Remove points for edge door (at LEFT edge)
+    door_mask = (x < door_width) & (z < door_top_z)
+    keep = ~door_mask
+    
+    points_edge = np.column_stack([x[keep], y[keep], z[keep]])
+    
+    print(f"\nWall with edge opening: {len(points_edge)} points")
+    print(f"  Expected edge door: {door_width}m × {door_height}m at LEFT edge")
+    print(f"  (This simulates a door at the end of a wall segment)")
+    
+    wall_edge = {
+        'points': points_edge,
+        'normal': np.array([0, 1, 0])
+    }
+    
+    # Test with edge openings DISABLED (old behavior)
+    print("\n--- With edge openings DISABLED ---")
+    openings_no_edge = detect_all_openings(
+        [wall_edge],
+        floor_height=floor_z,
+        ceiling_height=ceiling_z,
+        allow_edge_openings=False,
+        verbose=True
+    )
+    
+    # Test with edge openings ENABLED (new behavior)
+    print("\n--- With edge openings ENABLED ---")
+    openings_with_edge = detect_all_openings(
+        [wall_edge],
+        floor_height=floor_z,
+        ceiling_height=ceiling_z,
+        allow_edge_openings=True,
+        edge_opening_min_height=1.8,
+        verbose=True
+    )
+    
+    print(f"\n✓ Results comparison:")
+    print(f"  Without edge detection: {len(openings_no_edge)} openings")
+    print(f"  With edge detection: {len(openings_with_edge)} openings")
+    
+    for op in openings_with_edge:
+        if op.get('is_edge_opening'):
+            print(f"\n  ✓ EDGE OPENING DETECTED!")
+            print(f"    Type: {op['type']}")
+            print(f"    Width: {op['width']:.2f}m")
+            print(f"    Height: {op['height']:.2f}m")
+            print(f"    Touches left: {op.get('touches_left', False)}")
+            print(f"    Touches right: {op.get('touches_right', False)}")
