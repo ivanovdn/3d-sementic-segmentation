@@ -74,6 +74,85 @@ def project_wall_to_2d(wall: Dict) -> Tuple[np.ndarray, Dict]:
     return points_2d, transform
 
 
+def opening_2d_to_3d(opening: Dict, transform: Dict) -> Dict:
+    """
+    Convert 2D opening coordinates back to 3D world coordinates.
+    
+    Parameters:
+    -----------
+    opening : dict
+        Opening with x_min, x_max (along wall), z_min, z_max (height)
+    transform : dict
+        Transform from project_wall_to_2d containing centroid_xy, wall_direction
+        
+    Returns:
+    --------
+    dict with 3D coordinates:
+        - center_3d: (x, y, z) center point
+        - corners_3d: 4 corner points [(x,y,z), ...]
+        - bottom_left_3d, bottom_right_3d, top_left_3d, top_right_3d
+    """
+    centroid_xy = transform['centroid_xy']
+    wall_dir = transform['wall_direction']
+    
+    # 2D coordinates (along wall, height)
+    x_min_2d = opening['x_min']  # along wall
+    x_max_2d = opening['x_max']
+    z_min = opening['z_min']  # height (already in world Z)
+    z_max = opening['z_max']
+    
+    # Center in 2D
+    x_center_2d = (x_min_2d + x_max_2d) / 2
+    z_center = (z_min + z_max) / 2
+    
+    # Convert along-wall coordinate back to world XY
+    # point_xy = centroid_xy + along_wall * wall_direction
+    center_xy = centroid_xy + x_center_2d * wall_dir
+    left_xy = centroid_xy + x_min_2d * wall_dir
+    right_xy = centroid_xy + x_max_2d * wall_dir
+    
+    # Build 3D coordinates
+    center_3d = np.array([center_xy[0], center_xy[1], z_center])
+    
+    # Four corners of the opening (for visualization)
+    bottom_left_3d = np.array([left_xy[0], left_xy[1], z_min])
+    bottom_right_3d = np.array([right_xy[0], right_xy[1], z_min])
+    top_left_3d = np.array([left_xy[0], left_xy[1], z_max])
+    top_right_3d = np.array([right_xy[0], right_xy[1], z_max])
+    
+    return {
+        'center_3d': center_3d,
+        'corners_3d': [bottom_left_3d, bottom_right_3d, top_right_3d, top_left_3d],
+        'bottom_left_3d': bottom_left_3d,
+        'bottom_right_3d': bottom_right_3d,
+        'top_left_3d': top_left_3d,
+        'top_right_3d': top_right_3d
+    }
+
+
+def add_3d_coordinates_to_openings(openings: List[Dict]) -> List[Dict]:
+    """
+    Add 3D world coordinates to all openings.
+    
+    Each opening must have 'wall_transform' from detect_openings_in_wall.
+    
+    Parameters:
+    -----------
+    openings : list of dict
+        Openings with wall_transform
+        
+    Returns:
+    --------
+    openings with added 3D coordinate fields
+    """
+    for opening in openings:
+        if 'wall_transform' in opening:
+            coords_3d = opening_2d_to_3d(opening, opening['wall_transform'])
+            opening.update(coords_3d)
+    
+    return openings
+
+
 def create_density_grid(points_2d: np.ndarray,
                         cell_size: float = 0.05,
                         min_x: float = None,
@@ -350,6 +429,14 @@ def classify_openings(gaps: List[Dict],
     """
     Classify gaps as doors or windows.
     
+    Detection types:
+    - door: Touches floor, not ceiling, door-sized
+    - window: Floating (doesn't touch floor or ceiling)
+    - edge_door: Door at wall segment edge
+    
+    Gaps touching both floor AND ceiling are only accepted if door-width sized
+    (narrow archway/doorway), otherwise skipped as likely false positives.
+    
     Parameters:
     -----------
     gaps : list of dict
@@ -434,17 +521,23 @@ def classify_openings(gaps: List[Dict],
                 opening['confidence'] = 'medium'
         
         elif near_floor and near_ceiling:
-            # Floor to ceiling = could be doorway or full opening
-            opening['type'] = 'full_opening'
-            opening['confidence'] = 'medium'
-            
-            # Edge openings that go floor to ceiling are likely passages
-            if is_edge:
-                opening['subtype'] = 'passage'
+            # Floor to ceiling gap
+            # Only accept if width is door-like (narrow archway/doorway)
+            # Wide gaps are likely false positives (wall edges, sparse data)
+            if min_door_width <= width <= max_door_width:
+                opening['type'] = 'door'
+                opening['confidence'] = 'medium'
+                opening['subtype'] = 'archway'  # Full-height doorway
+                
+                if is_edge:
+                    opening['subtype'] = 'edge_door'
+            else:
+                # Too wide - skip this gap (likely false positive)
+                continue
         
         else:
-            opening['type'] = 'unknown'
-            opening['confidence'] = 'low'
+            # Near ceiling but not floor - unusual, skip
+            continue
         
         openings.append(opening)
     
@@ -682,6 +775,9 @@ def detect_all_openings(walls: List[Dict],
         print(f"  Windows: {len(windows)}")
         print(f"{'='*70}")
     
+    # Add 3D coordinates to all openings
+    add_3d_coordinates_to_openings(all_openings)
+    
     return all_openings
 
 
@@ -720,7 +816,7 @@ def visualize_wall_openings(wall: Dict,
     ax1.axhline(y=ceiling_height, color='gray', linestyle='--', label='Ceiling')
     
     # Draw openings
-    colors = {'door': 'red', 'window': 'green', 'full_opening': 'orange', 'unknown': 'gray'}
+    colors = {'door': 'red', 'window': 'green', 'unknown': 'gray'}
     for op in openings:
         color = colors.get(op['type'], 'gray')
         rect = patches.Rectangle(
@@ -768,6 +864,237 @@ def visualize_wall_openings(wall: Dict,
     
     plt.show()
     return fig
+
+
+def visualize_openings_3d(openings: List[Dict],
+                          walls: List[Dict] = None,
+                          point_cloud: np.ndarray = None,
+                          floor_height: float = None,
+                          ceiling_height: float = None,
+                          title: str = "3D Opening Detection",
+                          save_path: str = None,
+                          figsize: Tuple[int, int] = (14, 10)):
+    """
+    Visualize detected openings in 3D.
+    
+    Parameters:
+    -----------
+    openings : list of dict
+        Detected openings with 3D coordinates (from detect_all_openings)
+    walls : list of dict, optional
+        Wall segments with 'points' for context
+    point_cloud : np.ndarray, optional
+        Full point cloud for background
+    floor_height, ceiling_height : float, optional
+        For drawing floor/ceiling planes
+    title : str
+        Plot title
+    save_path : str, optional
+        Save figure to this path
+    figsize : tuple
+        Figure size
+        
+    Returns:
+    --------
+    fig : matplotlib figure
+    """
+    from mpl_toolkits.mplot3d import Axes3D
+    from mpl_toolkits.mplot3d.art3d import Poly3DCollection
+    
+    fig = plt.figure(figsize=figsize)
+    ax = fig.add_subplot(111, projection='3d')
+    
+    # Colors for different opening types
+    colors = {
+        'door': 'red',
+        'window': 'green',
+        'unknown': 'gray'
+    }
+    
+    # Plot point cloud background (sampled)
+    if point_cloud is not None:
+        n_sample = min(10000, len(point_cloud))
+        indices = np.random.choice(len(point_cloud), n_sample, replace=False)
+        sampled = point_cloud[indices]
+        ax.scatter(sampled[:, 0], sampled[:, 1], sampled[:, 2],
+                   s=0.5, alpha=0.1, c='lightgray', label='Point cloud')
+    
+    # Plot wall points
+    if walls is not None:
+        for i, wall in enumerate(walls):
+            pts = wall['points']
+            n_sample = min(2000, len(pts))
+            indices = np.random.choice(len(pts), n_sample, replace=False)
+            sampled = pts[indices]
+            ax.scatter(sampled[:, 0], sampled[:, 1], sampled[:, 2],
+                       s=1, alpha=0.3, c='blue')
+    
+    # Plot openings as 3D rectangles
+    for i, op in enumerate(openings):
+        if 'corners_3d' not in op:
+            continue
+        
+        corners = op['corners_3d']
+        color = colors.get(op['type'], 'gray')
+        
+        # Create polygon from corners [BL, BR, TR, TL]
+        verts = [corners]
+        poly = Poly3DCollection(verts, alpha=0.6, facecolor=color, 
+                                 edgecolor='black', linewidth=2)
+        ax.add_collection3d(poly)
+        
+        # Add label at center
+        center = op.get('center_3d')
+        if center is not None:
+            label = f"{op['type'][0].upper()}{i+1}"
+            ax.text(center[0], center[1], center[2], label,
+                    fontsize=10, fontweight='bold', color='black',
+                    ha='center', va='center')
+    
+    # Draw floor plane (optional)
+    if floor_height is not None and (point_cloud is not None or walls is not None):
+        if point_cloud is not None:
+            x_range = [point_cloud[:, 0].min(), point_cloud[:, 0].max()]
+            y_range = [point_cloud[:, 1].min(), point_cloud[:, 1].max()]
+        else:
+            all_pts = np.vstack([w['points'] for w in walls])
+            x_range = [all_pts[:, 0].min(), all_pts[:, 0].max()]
+            y_range = [all_pts[:, 1].min(), all_pts[:, 1].max()]
+        
+        # Floor plane
+        xx, yy = np.meshgrid(x_range, y_range)
+        zz = np.ones_like(xx) * floor_height
+        ax.plot_surface(xx, yy, zz, alpha=0.1, color='brown')
+    
+    # Labels and formatting
+    ax.set_xlabel('X (m)')
+    ax.set_ylabel('Y (m)')
+    ax.set_zlabel('Z (m)')
+    ax.set_title(title, fontsize=14, fontweight='bold')
+    
+    # Create legend
+    legend_elements = [
+        patches.Patch(facecolor='red', alpha=0.6, label='Door'),
+        patches.Patch(facecolor='green', alpha=0.6, label='Window'),
+    ]
+    ax.legend(handles=legend_elements, loc='upper left')
+    
+    # Equal aspect ratio
+    if point_cloud is not None:
+        max_range = np.array([
+            point_cloud[:, 0].max() - point_cloud[:, 0].min(),
+            point_cloud[:, 1].max() - point_cloud[:, 1].min(),
+            point_cloud[:, 2].max() - point_cloud[:, 2].min()
+        ]).max() / 2.0
+        mid_x = (point_cloud[:, 0].max() + point_cloud[:, 0].min()) / 2
+        mid_y = (point_cloud[:, 1].max() + point_cloud[:, 1].min()) / 2
+        mid_z = (point_cloud[:, 2].max() + point_cloud[:, 2].min()) / 2
+        ax.set_xlim(mid_x - max_range, mid_x + max_range)
+        ax.set_ylim(mid_y - max_range, mid_y + max_range)
+        ax.set_zlim(mid_z - max_range, mid_z + max_range)
+    
+    plt.tight_layout()
+    
+    if save_path:
+        plt.savefig(save_path, dpi=150, bbox_inches='tight')
+        print(f"Saved: {save_path}")
+    
+    plt.show()
+    return fig
+
+
+def extract_roomplan_openings(json_path: str) -> Dict:
+    """
+    Extract door/window/opening data from RoomPlan JSON.
+    
+    Parameters:
+    -----------
+    json_path : str
+        Path to RoomPlan JSON file
+        
+    Returns:
+    --------
+    dict with:
+        - doors: list of door info
+        - windows: list of window info
+        - openings: list of opening info
+    """
+    import json
+    
+    with open(json_path, 'r') as f:
+        data = json.load(f)
+    
+    def parse_transform(t):
+        """Parse 4x4 transform to extract position and rotation."""
+        if not t or len(t) < 16:
+            return None, None
+        
+        # Transform is column-major: [col0, col1, col2, col3]
+        # Position is in the last column (indices 12, 13, 14)
+        position = np.array([t[12], t[13], t[14]])
+        
+        # Rotation matrix (first 3 columns, first 3 rows)
+        rotation = np.array([
+            [t[0], t[4], t[8]],
+            [t[1], t[5], t[9]],
+            [t[2], t[6], t[10]]
+        ])
+        
+        return position, rotation
+    
+    def parse_opening(item, opening_type):
+        """Parse a single door/window/opening."""
+        dims = item.get('dimensions', [0, 0, 0])
+        width = dims[0] if len(dims) > 0 else 0
+        height = dims[1] if len(dims) > 1 else 0
+        
+        position, rotation = parse_transform(item.get('transform', []))
+        
+        # Calculate corner points in world coordinates
+        corners_3d = None
+        if position is not None and rotation is not None:
+            # Local corners (centered at origin)
+            hw, hh = width / 2, height / 2
+            local_corners = np.array([
+                [-hw, 0, -hh],  # bottom-left
+                [hw, 0, -hh],   # bottom-right
+                [hw, 0, hh],    # top-right
+                [-hw, 0, hh],   # top-left
+            ])
+            
+            # Transform to world coordinates
+            corners_3d = []
+            for corner in local_corners:
+                world_corner = rotation @ corner + position
+                corners_3d.append(world_corner)
+        
+        return {
+            'type': opening_type,
+            'width': width,
+            'height': height,
+            'center_3d': position,
+            'rotation': rotation,
+            'corners_3d': corners_3d,
+            'raw_dimensions': dims,
+            'raw_transform': item.get('transform', [])
+        }
+    
+    result = {
+        'doors': [],
+        'windows': [],
+        'openings': []
+    }
+    
+    for door in data.get('doors', []):
+        result['doors'].append(parse_opening(door, 'door'))
+    
+    for window in data.get('windows', []):
+        result['windows'].append(parse_opening(window, 'window'))
+    
+    for opening in data.get('openings', []):
+        result['openings'].append(parse_opening(opening, 'opening'))
+    
+    return result
 
 
 # =============================================================================
@@ -905,3 +1232,41 @@ if __name__ == "__main__":
             print(f"    Height: {op['height']:.2f}m")
             print(f"    Touches left: {op.get('touches_left', False)}")
             print(f"    Touches right: {op.get('touches_right', False)}")
+            
+            # Show 3D coordinates
+            if 'center_3d' in op:
+                print(f"    3D Center: ({op['center_3d'][0]:.2f}, {op['center_3d'][1]:.2f}, {op['center_3d'][2]:.2f})")
+            if 'corners_3d' in op:
+                print(f"    3D Corners:")
+                for j, corner in enumerate(op['corners_3d']):
+                    print(f"      [{j}]: ({corner[0]:.2f}, {corner[1]:.2f}, {corner[2]:.2f})")
+
+    # =========================================================================
+    # Test 3: Extract RoomPlan openings and show 3D coordinates
+    # =========================================================================
+    print("\n" + "="*50)
+    print("TEST 3: Extract RoomPlan openings with 3D coordinates")
+    print("="*50)
+    
+    try:
+        rp_openings = extract_roomplan_openings("/mnt/user-data/uploads/room.json")
+        
+        print(f"\nRoomPlan openings:")
+        print(f"  Doors: {len(rp_openings['doors'])}")
+        print(f"  Windows: {len(rp_openings['windows'])}")
+        print(f"  Openings: {len(rp_openings['openings'])}")
+        
+        for cat in ['doors', 'windows', 'openings']:
+            for i, item in enumerate(rp_openings[cat]):
+                print(f"\n  {cat[:-1].title()} {i}:")
+                print(f"    Width: {item['width']:.2f}m")
+                print(f"    Height: {item['height']:.2f}m")
+                if item['center_3d'] is not None:
+                    c = item['center_3d']
+                    print(f"    3D Center: ({c[0]:.2f}, {c[1]:.2f}, {c[2]:.2f})")
+                if item['corners_3d'] is not None:
+                    print(f"    3D Corners:")
+                    for j, corner in enumerate(item['corners_3d']):
+                        print(f"      [{j}]: ({corner[0]:.2f}, {corner[1]:.2f}, {corner[2]:.2f})")
+    except Exception as e:
+        print(f"  Could not load room.json: {e}")
