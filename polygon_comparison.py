@@ -444,6 +444,395 @@ def export_to_dataframe(comparison: Dict[str, pd.DataFrame]) -> pd.DataFrame:
 
 
 # =============================================================================
+# OPENING COMPARISON
+# =============================================================================
+
+def extract_roomplan_openings(json_path: str) -> Dict:
+    """
+    Extract door/window/opening data from RoomPlan JSON.
+    
+    Parameters:
+    -----------
+    json_path : str
+        Path to RoomPlan JSON file
+        
+    Returns:
+    --------
+    dict with:
+        - doors: list of {'width', 'height', 'type'}
+        - windows: list of {'width', 'height', 'type'}
+        - openings: list of {'width', 'height', 'type'}
+    """
+    
+    with open(json_path, 'r') as f:
+        data = json.load(f)
+    
+    def parse_opening(item, opening_type):
+        """Parse a single door/window/opening."""
+        dims = item.get('dimensions', [0, 0, 0])
+        width = dims[0] if len(dims) > 0 else 0
+        height = dims[1] if len(dims) > 1 else 0
+        
+        return {
+            'type': opening_type,
+            'width': float(width),
+            'height': float(height)
+        }
+    
+    result = {
+        'doors': [],
+        'windows': [],
+        'openings': []  # RoomPlan "openings" are typically doorways
+    }
+    
+    for door in data.get('doors', []):
+        result['doors'].append(parse_opening(door, 'door'))
+    
+    for window in data.get('windows', []):
+        result['windows'].append(parse_opening(window, 'window'))
+    
+    for opening in data.get('openings', []):
+        result['openings'].append(parse_opening(opening, 'door'))  # Treat as door
+    
+    return result
+
+
+def _match_openings_by_dimensions(fitted: List[Dict], 
+                                   reference: List[Dict],
+                                   width_tolerance: float = 0.3,
+                                   height_tolerance: float = 0.3) -> List[Tuple[int, int, float]]:
+    """
+    Match openings by dimension similarity using greedy matching.
+    
+    Returns list of (fitted_idx, reference_idx, score) tuples.
+    Lower score = better match.
+    """
+    if not fitted or not reference:
+        return []
+    
+    matches = []
+    used_reference = set()
+    
+    for f_idx, f_op in enumerate(fitted):
+        best_match = None
+        best_score = float('inf')
+        
+        for r_idx, r_op in enumerate(reference):
+            if r_idx in used_reference:
+                continue
+            
+            # Calculate dimension difference
+            w_diff = abs(f_op['width'] - r_op['width'])
+            h_diff = abs(f_op['height'] - r_op['height'])
+            
+            # Check if within tolerance
+            if w_diff <= width_tolerance and h_diff <= height_tolerance:
+                score = w_diff + h_diff
+                if score < best_score:
+                    best_score = score
+                    best_match = r_idx
+        
+        if best_match is not None:
+            matches.append((f_idx, best_match, best_score))
+            used_reference.add(best_match)
+    
+    return matches
+
+
+def compare_openings(fitted_openings: List[Dict],
+                     roomplan_openings: Dict,
+                     ground_truth_openings: Optional[Dict] = None,
+                     decimals: int = 2,
+                     width_tolerance: float = 0.5,
+                     height_tolerance: float = 0.5) -> Dict[str, pd.DataFrame]:
+    """
+    Compare detected openings with RoomPlan and optional ground truth.
+    
+    Parameters:
+    -----------
+    fitted_openings : list of dict
+        Detected openings from detect_all_openings()
+        Each should have 'type', 'width', 'height'
+    roomplan_openings : dict
+        Output from extract_roomplan_openings() with 'doors', 'windows', 'openings'
+    ground_truth_openings : dict, optional
+        Manual measurements with structure:
+        {
+            'doors': [{'width': 0.85, 'height': 2.10}, ...],
+            'windows': [{'width': 2.50, 'height': 1.50}, ...]
+        }
+    decimals : int
+        Round to this many decimal places
+    width_tolerance, height_tolerance : float
+        Tolerance for matching openings (meters)
+        
+    Returns:
+    --------
+    dict with DataFrames:
+        - 'doors': Door comparison table
+        - 'windows': Window comparison table
+        - 'openings_summary': Count summary
+    """
+    
+    results = {}
+    
+    # Separate fitted by type
+    fitted_doors = [o for o in fitted_openings if o.get('type') == 'door']
+    fitted_windows = [o for o in fitted_openings if o.get('type') == 'window']
+    fitted_full = [o for o in fitted_openings if o.get('type') == 'full_opening']
+    
+    # Combine RoomPlan doors and openings (openings are typically doorways)
+    rp_doors = roomplan_openings.get('doors', []) + roomplan_openings.get('openings', [])
+    rp_windows = roomplan_openings.get('windows', [])
+    
+    # Ground truth
+    gt_doors = ground_truth_openings.get('doors', []) if ground_truth_openings else []
+    gt_windows = ground_truth_openings.get('windows', []) if ground_truth_openings else []
+    
+    # ========================================================================
+    # Door Comparison
+    # ========================================================================
+    
+    door_data = []
+    
+    # Match fitted doors to RoomPlan doors
+    door_matches = _match_openings_by_dimensions(
+        fitted_doors, rp_doors, width_tolerance, height_tolerance
+    )
+    matched_fitted_doors = {m[0] for m in door_matches}
+    matched_rp_doors = {m[1] for m in door_matches}
+    
+    # Match to ground truth if available
+    gt_door_matches = _match_openings_by_dimensions(
+        fitted_doors, gt_doors, width_tolerance, height_tolerance
+    ) if gt_doors else []
+    gt_door_map = {m[0]: m[1] for m in gt_door_matches}
+    
+    # Add matched doors
+    for f_idx, r_idx, _ in door_matches:
+        f_door = fitted_doors[f_idx]
+        r_door = rp_doors[r_idx]
+        
+        row = {
+            'Door': f'D{f_idx + 1}',
+            'Fitted_W (m)': round(f_door['width'], decimals),
+            'Fitted_H (m)': round(f_door['height'], decimals),
+            'RP_W (m)': round(r_door['width'], decimals),
+            'RP_H (m)': round(r_door['height'], decimals),
+            'Diff_W (cm)': round((f_door['width'] - r_door['width']) * 100, 1),
+            'Diff_H (cm)': round((f_door['height'] - r_door['height']) * 100, 1),
+        }
+        
+        # Add ground truth if matched
+        if f_idx in gt_door_map:
+            gt_door = gt_doors[gt_door_map[f_idx]]
+            row['GT_W (m)'] = round(gt_door['width'], decimals)
+            row['GT_H (m)'] = round(gt_door['height'], decimals)
+            row['Diff_GT_W (cm)'] = round((f_door['width'] - gt_door['width']) * 100, 1)
+            row['Diff_GT_H (cm)'] = round((f_door['height'] - gt_door['height']) * 100, 1)
+        
+        door_data.append(row)
+    
+    # Add unmatched fitted doors
+    for f_idx, f_door in enumerate(fitted_doors):
+        if f_idx not in matched_fitted_doors:
+            row = {
+                'Door': f'D{f_idx + 1}',
+                'Fitted_W (m)': round(f_door['width'], decimals),
+                'Fitted_H (m)': round(f_door['height'], decimals),
+                'RP_W (m)': '-',
+                'RP_H (m)': '-',
+                'Diff_W (cm)': '-',
+                'Diff_H (cm)': '-',
+            }
+            
+            if f_idx in gt_door_map:
+                gt_door = gt_doors[gt_door_map[f_idx]]
+                row['GT_W (m)'] = round(gt_door['width'], decimals)
+                row['GT_H (m)'] = round(gt_door['height'], decimals)
+                row['Diff_GT_W (cm)'] = round((f_door['width'] - gt_door['width']) * 100, 1)
+                row['Diff_GT_H (cm)'] = round((f_door['height'] - gt_door['height']) * 100, 1)
+            
+            door_data.append(row)
+    
+    # Add unmatched RoomPlan doors
+    for r_idx, r_door in enumerate(rp_doors):
+        if r_idx not in matched_rp_doors:
+            row = {
+                'Door': f'RP_{r_idx + 1}',
+                'Fitted_W (m)': '-',
+                'Fitted_H (m)': '-',
+                'RP_W (m)': round(r_door['width'], decimals),
+                'RP_H (m)': round(r_door['height'], decimals),
+                'Diff_W (cm)': '-',
+                'Diff_H (cm)': '-',
+            }
+            door_data.append(row)
+    
+    results['doors'] = pd.DataFrame(door_data) if door_data else pd.DataFrame()
+    
+    # ========================================================================
+    # Window Comparison
+    # ========================================================================
+    
+    window_data = []
+    
+    # Match fitted windows to RoomPlan windows
+    window_matches = _match_openings_by_dimensions(
+        fitted_windows, rp_windows, width_tolerance, height_tolerance
+    )
+    matched_fitted_windows = {m[0] for m in window_matches}
+    matched_rp_windows = {m[1] for m in window_matches}
+    
+    # Match to ground truth if available
+    gt_window_matches = _match_openings_by_dimensions(
+        fitted_windows, gt_windows, width_tolerance, height_tolerance
+    ) if gt_windows else []
+    gt_window_map = {m[0]: m[1] for m in gt_window_matches}
+    
+    # Add matched windows
+    for f_idx, r_idx, _ in window_matches:
+        f_win = fitted_windows[f_idx]
+        r_win = rp_windows[r_idx]
+        
+        row = {
+            'Window': f'W{f_idx + 1}',
+            'Fitted_W (m)': round(f_win['width'], decimals),
+            'Fitted_H (m)': round(f_win['height'], decimals),
+            'RP_W (m)': round(r_win['width'], decimals),
+            'RP_H (m)': round(r_win['height'], decimals),
+            'Diff_W (cm)': round((f_win['width'] - r_win['width']) * 100, 1),
+            'Diff_H (cm)': round((f_win['height'] - r_win['height']) * 100, 1),
+        }
+        
+        if f_idx in gt_window_map:
+            gt_win = gt_windows[gt_window_map[f_idx]]
+            row['GT_W (m)'] = round(gt_win['width'], decimals)
+            row['GT_H (m)'] = round(gt_win['height'], decimals)
+            row['Diff_GT_W (cm)'] = round((f_win['width'] - gt_win['width']) * 100, 1)
+            row['Diff_GT_H (cm)'] = round((f_win['height'] - gt_win['height']) * 100, 1)
+        
+        window_data.append(row)
+    
+    # Add unmatched fitted windows
+    for f_idx, f_win in enumerate(fitted_windows):
+        if f_idx not in matched_fitted_windows:
+            row = {
+                'Window': f'W{f_idx + 1}',
+                'Fitted_W (m)': round(f_win['width'], decimals),
+                'Fitted_H (m)': round(f_win['height'], decimals),
+                'RP_W (m)': '-',
+                'RP_H (m)': '-',
+                'Diff_W (cm)': '-',
+                'Diff_H (cm)': '-',
+            }
+            
+            if f_idx in gt_window_map:
+                gt_win = gt_windows[gt_window_map[f_idx]]
+                row['GT_W (m)'] = round(gt_win['width'], decimals)
+                row['GT_H (m)'] = round(gt_win['height'], decimals)
+                row['Diff_GT_W (cm)'] = round((f_win['width'] - gt_win['width']) * 100, 1)
+                row['Diff_GT_H (cm)'] = round((f_win['height'] - gt_win['height']) * 100, 1)
+            
+            window_data.append(row)
+    
+    # Add unmatched RoomPlan windows
+    for r_idx, r_win in enumerate(rp_windows):
+        if r_idx not in matched_rp_windows:
+            row = {
+                'Window': f'RP_{r_idx + 1}',
+                'Fitted_W (m)': '-',
+                'Fitted_H (m)': '-',
+                'RP_W (m)': round(r_win['width'], decimals),
+                'RP_H (m)': round(r_win['height'], decimals),
+                'Diff_W (cm)': '-',
+                'Diff_H (cm)': '-',
+            }
+            window_data.append(row)
+    
+    results['windows'] = pd.DataFrame(window_data) if window_data else pd.DataFrame()
+    
+    # ========================================================================
+    # Summary
+    # ========================================================================
+    
+    summary_data = [
+        {
+            'Type': 'Doors',
+            'Fitted': len(fitted_doors) + len(fitted_full),
+            'RoomPlan': len(rp_doors),
+            'GroundTruth': len(gt_doors) if gt_doors else '-',
+            'Matched': len(door_matches)
+        },
+        {
+            'Type': 'Windows',
+            'Fitted': len(fitted_windows),
+            'RoomPlan': len(rp_windows),
+            'GroundTruth': len(gt_windows) if gt_windows else '-',
+            'Matched': len(window_matches)
+        }
+    ]
+    
+    results['openings_summary'] = pd.DataFrame(summary_data)
+    
+    return results
+
+
+def compare_openings_with_roomplan_json(
+    fitted_openings: List[Dict],
+    json_path: str,
+    ground_truth_openings: Optional[Dict] = None,
+    decimals: int = 2
+) -> Dict[str, pd.DataFrame]:
+    """
+    Compare detected openings with RoomPlan JSON file.
+    """
+    roomplan = extract_roomplan_openings(json_path)
+    return compare_openings(fitted_openings, roomplan, ground_truth_openings, decimals)
+
+
+def print_opening_comparison(comparison: Dict[str, pd.DataFrame], 
+                             title: str = "Opening Comparison"):
+    """Pretty print opening comparison results."""
+    
+    print(f"\n{'='*70}")
+    print(f"{title}")
+    print(f"{'='*70}")
+    
+    if 'openings_summary' in comparison:
+        print(f"\n📊 SUMMARY")
+        print(comparison['openings_summary'].to_string(index=False))
+    
+    if 'doors' in comparison and len(comparison['doors']) > 0:
+        print(f"\n🚪 DOORS")
+        print(comparison['doors'].to_string(index=False))
+        
+        # Statistics
+        df = comparison['doors']
+        if 'Diff_W (cm)' in df.columns:
+            w_diffs = pd.to_numeric(df['Diff_W (cm)'], errors='coerce').dropna()
+            h_diffs = pd.to_numeric(df['Diff_H (cm)'], errors='coerce').dropna()
+            if len(w_diffs) > 0:
+                print(f"\n   Width  - MAE: {w_diffs.abs().mean():.1f}cm, Max: {w_diffs.abs().max():.1f}cm")
+            if len(h_diffs) > 0:
+                print(f"   Height - MAE: {h_diffs.abs().mean():.1f}cm, Max: {h_diffs.abs().max():.1f}cm")
+    
+    if 'windows' in comparison and len(comparison['windows']) > 0:
+        print(f"\n🪟 WINDOWS")
+        print(comparison['windows'].to_string(index=False))
+        
+        # Statistics
+        df = comparison['windows']
+        if 'Diff_W (cm)' in df.columns:
+            w_diffs = pd.to_numeric(df['Diff_W (cm)'], errors='coerce').dropna()
+            h_diffs = pd.to_numeric(df['Diff_H (cm)'], errors='coerce').dropna()
+            if len(w_diffs) > 0:
+                print(f"\n   Width  - MAE: {w_diffs.abs().mean():.1f}cm, Max: {w_diffs.abs().max():.1f}cm")
+            if len(h_diffs) > 0:
+                print(f"   Height - MAE: {h_diffs.abs().mean():.1f}cm, Max: {h_diffs.abs().max():.1f}cm")
+
+
+# =============================================================================
 # TEST
 # =============================================================================
 
@@ -484,6 +873,50 @@ if __name__ == "__main__":
         # Compare (should auto-align edges)
         comparison = compare_polygons(fitted, roomplan, ground_truth, decimals=3)
         print_comparison(comparison, "Test Comparison (with auto-alignment)")
+        
+        # =====================================================================
+        # Opening Comparison Test
+        # =====================================================================
+        print("\n" + "="*70)
+        print("OPENING COMPARISON TEST")
+        print("="*70)
+        
+        # Extract RoomPlan openings
+        rp_openings = extract_roomplan_openings(json_path)
+        print(f"\nRoomPlan openings from JSON:")
+        print(f"  Doors: {len(rp_openings['doors'])}")
+        print(f"  Windows: {len(rp_openings['windows'])}")
+        print(f"  Openings (doorways): {len(rp_openings['openings'])}")
+        
+        for cat in ['doors', 'windows', 'openings']:
+            for i, item in enumerate(rp_openings[cat]):
+                print(f"    {cat[:-1].title()} {i+1}: {item['width']:.2f}m × {item['height']:.2f}m")
+        
+        # Simulated detected openings (from our detection algorithm)
+        fitted_openings = [
+            {'type': 'door', 'width': 0.85, 'height': 2.05},  # Should match opening
+            {'type': 'window', 'width': 2.45, 'height': 1.55},  # Should match window
+        ]
+        
+        # Ground truth measurements (manual)
+        ground_truth_openings = {
+            'doors': [
+                {'width': 0.87, 'height': 2.08}  # Measured door
+            ],
+            'windows': [
+                {'width': 2.49, 'height': 1.56}  # Measured window
+            ]
+        }
+        
+        # Compare openings
+        opening_comparison = compare_openings(
+            fitted_openings,
+            rp_openings,
+            ground_truth_openings,
+            decimals=2
+        )
+        
+        print_opening_comparison(opening_comparison, "Opening Detection vs RoomPlan vs Ground Truth")
         
     except Exception as e:
         print(f"Error: {e}")
